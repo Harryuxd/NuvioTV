@@ -362,7 +362,7 @@ class NuvioMpvSurfaceView @JvmOverloads constructor(
             val backgroundAlpha = (style.backgroundColor ushr 24) and 0xFF
             val borderStyle = if (backgroundAlpha > 0) "background-box" else "outline-and-shadow"
             // In background-box mode, sub-shadow-offset controls the box padding/margin
-            val shadowOffset = if (backgroundAlpha > 0) 5.0 else 0.0
+            val shadowOffset = if (backgroundAlpha > 0) 8.0 else 0.0
 
             mpv.setPropertyDouble("sub-scale", scale)
             mpv.setPropertyBoolean("sub-bold", style.bold)
