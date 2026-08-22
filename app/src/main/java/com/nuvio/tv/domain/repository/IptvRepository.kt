@@ -26,4 +26,5 @@ interface IptvRepository {
     suspend fun toggleFavorite(channelId: String, isFavorite: Boolean)
     suspend fun recordChannelWatched(channelId: String)
     suspend fun getCredentials(playlistId: String): XtreamCredentials?
+    suspend fun reResolveAllLogos(): Result<Int>
 }

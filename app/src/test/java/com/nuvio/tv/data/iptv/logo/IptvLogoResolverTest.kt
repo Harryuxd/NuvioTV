@@ -38,5 +38,9 @@ class IptvLogoResolverTest {
         assertEquals("bbc one", resolver.normalize("UK: BBC ONE HD"))
         assertEquals("hbo", resolver.normalize("US | HBO EAST (BACKUP)"))
         assertEquals("supersport premier league", resolver.normalize("DSTV: SUPERSPORT PREMIER LEAGUE FHD"))
+        assertEquals("sky sports main event", resolver.normalize("4K: SKY SPORTS MAIN EVENT 4K| UHD 3840P"))
+        assertEquals("sky sports main event", resolver.normalize("NOW: SKY SPORTS MAIN EVENT UHD ³⁸"))
+        assertEquals("sky sports main event", resolver.normalize("NOW: SKY SPORTS MAIN EVENT HD/RAW"))
+        assertEquals("sky sports main event", resolver.normalize("UK: SKY SPORTS MAIN EVENT"))
     }
 }

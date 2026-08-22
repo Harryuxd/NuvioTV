@@ -30,6 +30,9 @@ class IptvPreferencesDataStore @Inject constructor(
         private val IPTV_PLAYER_ENGINE = stringPreferencesKey("iptv_player_engine")
         private val EPG_AUTO_SYNC_ENABLED = booleanPreferencesKey("epg_auto_sync_enabled")
         private val IPTV_BUFFER_PROFILE = stringPreferencesKey("iptv_buffer_profile")
+        private val LOGO_PRIORITY_ORDER = stringPreferencesKey("iptv_logo_priority_order")
+        private val USE_PROVIDER_LOGO_FALLBACK = booleanPreferencesKey("iptv_use_provider_logo_fallback")
+        const val DEFAULT_LOGO_PRIORITY = "TV_LOGOS,IPTV_ORG,PROVIDER"
     }
 
     val activePlaylistId: Flow<String?> = context.iptvDataStore.data.map { prefs ->
@@ -83,6 +86,27 @@ class IptvPreferencesDataStore @Inject constructor(
     suspend fun setIptvBufferProfile(profile: IptvBufferProfile) {
         context.iptvDataStore.edit { prefs ->
             prefs[IPTV_BUFFER_PROFILE] = profile.name
+        }
+    }
+
+    val logoPriorityOrder: Flow<List<String>> = context.iptvDataStore.data.map { prefs ->
+        val raw = prefs[LOGO_PRIORITY_ORDER] ?: DEFAULT_LOGO_PRIORITY
+        raw.split(",").map { it.trim() }.filter { it.isNotBlank() }
+    }
+
+    suspend fun setLogoPriorityOrder(order: List<String>) {
+        context.iptvDataStore.edit { prefs ->
+            prefs[LOGO_PRIORITY_ORDER] = order.joinToString(",")
+        }
+    }
+
+    val useProviderLogoFallback: Flow<Boolean> = context.iptvDataStore.data.map { prefs ->
+        prefs[USE_PROVIDER_LOGO_FALLBACK] ?: true
+    }
+
+    suspend fun setUseProviderLogoFallback(enabled: Boolean) {
+        context.iptvDataStore.edit { prefs ->
+            prefs[USE_PROVIDER_LOGO_FALLBACK] = enabled
         }
     }
 }

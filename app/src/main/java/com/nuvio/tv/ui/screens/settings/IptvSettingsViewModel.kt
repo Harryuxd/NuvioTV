@@ -29,7 +29,11 @@ data class IptvSettingsUiState(
     val isCacheCleared: Boolean = false,
     val manualEpgSources: List<IptvEpgSource> = emptyList(),
     val playlistEpgSources: List<IptvEpgSource> = emptyList(),
-    val isRefreshingSources: Boolean = false
+    val isRefreshingSources: Boolean = false,
+    val logoPriorityOrder: List<String> = listOf("TV_LOGOS", "IPTV_ORG", "PROVIDER"),
+    val useProviderLogoFallback: Boolean = true,
+    val isReResolvingLogos: Boolean = false,
+    val reResolveMessage: String? = null
 )
 
 @HiltViewModel
@@ -67,6 +71,16 @@ class IptvSettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            iptvPreferencesDataStore.logoPriorityOrder.collectLatest { order ->
+                _uiState.update { it.copy(logoPriorityOrder = order) }
+            }
+        }
+        viewModelScope.launch {
+            iptvPreferencesDataStore.useProviderLogoFallback.collectLatest { fallback ->
+                _uiState.update { it.copy(useProviderLogoFallback = fallback) }
+            }
+        }
+        viewModelScope.launch {
             iptvRepository.getPlaylists().collectLatest { playlists ->
                 val totalChannels = playlists.sumOf { it.channelCount }
                 _uiState.update {
@@ -94,6 +108,48 @@ class IptvSettingsViewModel @Inject constructor(
     fun setBufferProfile(profile: IptvBufferProfile) {
         viewModelScope.launch {
             iptvPreferencesDataStore.setIptvBufferProfile(profile)
+        }
+    }
+
+    fun setUseProviderLogoFallback(enabled: Boolean) {
+        viewModelScope.launch {
+            iptvPreferencesDataStore.setUseProviderLogoFallback(enabled)
+        }
+    }
+
+    fun moveLogoPriorityUp(sourceId: String) {
+        val current = _uiState.value.logoPriorityOrder.toMutableList()
+        val index = current.indexOf(sourceId)
+        if (index > 0) {
+            val item = current.removeAt(index)
+            current.add(index - 1, item)
+            viewModelScope.launch {
+                iptvPreferencesDataStore.setLogoPriorityOrder(current)
+            }
+        }
+    }
+
+    fun moveLogoPriorityDown(sourceId: String) {
+        val current = _uiState.value.logoPriorityOrder.toMutableList()
+        val index = current.indexOf(sourceId)
+        if (index >= 0 && index < current.size - 1) {
+            val item = current.removeAt(index)
+            current.add(index + 1, item)
+            viewModelScope.launch {
+                iptvPreferencesDataStore.setLogoPriorityOrder(current)
+            }
+        }
+    }
+
+    fun reResolveAllLogos() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isReResolvingLogos = true, reResolveMessage = "Re-resolving logos...") }
+            val result = iptvRepository.reResolveAllLogos()
+            val message = result.fold(
+                onSuccess = { count -> "Updated logos for $count channels!" },
+                onFailure = { err -> "Failed to re-resolve: ${err.message}" }
+            )
+            _uiState.update { it.copy(isReResolvingLogos = false, reResolveMessage = message) }
         }
     }
 

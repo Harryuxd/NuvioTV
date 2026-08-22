@@ -15,6 +15,7 @@ import com.nuvio.tv.domain.repository.IptvEpgRepository
 import com.nuvio.tv.domain.repository.IptvRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -119,7 +120,9 @@ class IptvRepositoryImpl @Inject constructor(
             }
 
             // Restore favorites & watch history
-            val updatedChannels = logoResolver.resolve(channels).map { ch ->
+            val priority = preferencesDataStore.logoPriorityOrder.firstOrNull() ?: listOf("TV_LOGOS", "IPTV_ORG", "PROVIDER")
+            val fallback = preferencesDataStore.useProviderLogoFallback.firstOrNull() ?: true
+            val updatedChannels = logoResolver.resolve(channels, priority, fallback).map { ch ->
                 ch.copy(
                     isFavorite = ch.id in existingFavorites,
                     lastWatchedEpochMs = existingHistory[ch.id]
@@ -168,25 +171,21 @@ class IptvRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getChannelAlternatives(channelId: String): List<IptvChannel> = withContext(Dispatchers.IO) {
-        val channel = dbHelper.getChannelById(channelId) ?: return@withContext emptyList()
-        val cacheKey = "${channel.playlistId}|${channel.tvgId?.trim()?.lowercase().orEmpty()}|${channel.name.toChannelFamilyKey()}"
+        val baseChannel = dbHelper.getChannelById(channelId) ?: return@withContext emptyList()
+        val playlistId = baseChannel.playlistId
+        val cacheKey = "$playlistId|$channelId"
         channelAlternativesCache[cacheKey]?.let { return@withContext it }
-        val playlistChannels = dbHelper.getChannels(channel.playlistId)
-        val sameTvgId = channel.tvgId?.trim()?.takeIf { it.isNotEmpty() }?.let { tvgId ->
-            playlistChannels.filter { it.tvgId.equals(tvgId, ignoreCase = true) }
-        }.orEmpty()
-        val alternatives = if (sameTvgId.size > 1) {
-            sameTvgId
-        } else {
-            val family = channel.name.toChannelFamilyKey()
-            playlistChannels.filter { it.name.toChannelFamilyKey() == family }
+
+        val allChannelsInPlaylist = dbHelper.getChannels(playlistId)
+        val baseFamilyKey = baseChannel.name.toChannelFamilyKey()
+
+        val alternatives = allChannelsInPlaylist.filter { candidate ->
+            candidate.id != baseChannel.id &&
+            candidate.name.toChannelFamilyKey() == baseFamilyKey
         }
-        val sorted = alternatives.sortedWith(
-            compareBy<IptvChannel> { it.id != channel.id }
-                .thenBy { it.channelNumber ?: Int.MAX_VALUE }
-                .thenBy { it.name }
-        )
-        channelAlternativesCache.putIfAbsent(cacheKey, sorted) ?: sorted
+
+        channelAlternativesCache[cacheKey] = alternatives
+        alternatives
     }
 
     override suspend fun toggleFavorite(channelId: String, isFavorite: Boolean) = withContext(Dispatchers.IO) {
@@ -199,6 +198,26 @@ class IptvRepositoryImpl @Inject constructor(
 
     override suspend fun getCredentials(playlistId: String): XtreamCredentials? = withContext(Dispatchers.IO) {
         credentialStore.getCredentials(playlistId)
+    }
+
+    override suspend fun reResolveAllLogos(): Result<Int> = withContext(Dispatchers.IO) {
+        runCatching {
+            val priority = preferencesDataStore.logoPriorityOrder.firstOrNull() ?: listOf("TV_LOGOS", "IPTV_ORG", "PROVIDER")
+            val fallback = preferencesDataStore.useProviderLogoFallback.firstOrNull() ?: true
+            val playlists = dbHelper.getAllPlaylists()
+            var totalUpdated = 0
+
+            for (playlist in playlists) {
+                val channels = dbHelper.getChannels(playlist.id)
+                if (channels.isNotEmpty()) {
+                    val resolved = logoResolver.resolve(channels, priority, fallback)
+                    dbHelper.replaceChannels(playlist.id, resolved)
+                    invalidateChannelAlternatives(playlist.id)
+                    totalUpdated += resolved.size
+                }
+            }
+            totalUpdated
+        }
     }
 
     private fun invalidateChannelAlternatives(playlistId: String) {

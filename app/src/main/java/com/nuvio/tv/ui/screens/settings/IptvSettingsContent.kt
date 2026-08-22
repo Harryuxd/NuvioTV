@@ -48,6 +48,9 @@ import com.nuvio.tv.data.local.iptv.IptvBufferProfile
 import com.nuvio.tv.ui.theme.NuvioTheme
 import com.nuvio.tv.domain.model.iptv.IptvEpgSource
 
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Image
+
 @Composable
 internal fun IptvSettingsContent(
     onNavigateToPlaylistManager: () -> Unit,
@@ -57,6 +60,7 @@ internal fun IptvSettingsContent(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var sourceBeingEdited by remember { mutableStateOf<IptvEpgSource?>(null) }
     var showSourceDialog by remember { mutableStateOf(false) }
+    var showPriorityDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
@@ -125,6 +129,42 @@ internal fun IptvSettingsContent(
                     }
                     viewModel.setBufferProfile(nextProfile)
                 }
+            )
+        }
+
+        // ── Section 3: Channel Logos & Artwork ──
+        SettingsDetailHeader(title = "Channel Logos & Artwork", subtitle = "Configure multi-source logo resolution and provider fallbacks")
+        SettingsGroupCard(modifier = Modifier.fillMaxWidth()) {
+            val prioritySummary = uiState.logoPriorityOrder.joinToString(" → ") { id ->
+                when (id.uppercase()) {
+                    "TV_LOGOS" -> "TV-Logos"
+                    "IPTV_ORG" -> "IPTV-ORG"
+                    "PROVIDER" -> "Provider"
+                    else -> id
+                }
+            }
+
+            SettingsActionRow(
+                title = "Logo Source Priority",
+                subtitle = "Reorder source precedence for high-quality TV channel artwork",
+                value = prioritySummary,
+                leadingIcon = Icons.Default.Image,
+                onClick = { showPriorityDialog = true }
+            )
+
+            SettingsToggleRow(
+                title = "Fallback to Provider Logo",
+                subtitle = "Use playlist's original logo if no curated TV-Logo / IPTV-ORG match is found",
+                checked = uiState.useProviderLogoFallback,
+                onToggle = { viewModel.setUseProviderLogoFallback(!uiState.useProviderLogoFallback) }
+            )
+
+            SettingsActionRow(
+                title = "Re-resolve Channel Logos",
+                subtitle = "Re-scan all channels with updated source priority and clean rules",
+                value = if (uiState.isReResolvingLogos) "Processing…" else (uiState.reResolveMessage ?: "Re-resolve"),
+                leadingIcon = Icons.Default.AutoAwesome,
+                onClick = { viewModel.reResolveAllLogos() }
             )
         }
 
@@ -248,6 +288,16 @@ internal fun IptvSettingsContent(
         onRefresh = { source -> viewModel.refreshEpgSource(source) },
         onDelete = { source -> viewModel.deleteEpgSource(source.id); showSourceDialog = false }
     )
+
+    if (showPriorityDialog) {
+        LogoPriorityDialog(
+            priorityOrder = uiState.logoPriorityOrder,
+            onMoveUp = { sourceId -> viewModel.moveLogoPriorityUp(sourceId) },
+            onMoveDown = { sourceId -> viewModel.moveLogoPriorityDown(sourceId) },
+            onDismiss = { showPriorityDialog = false },
+            onReResolve = { viewModel.reResolveAllLogos() }
+        )
+    }
 }
 
 @Composable
