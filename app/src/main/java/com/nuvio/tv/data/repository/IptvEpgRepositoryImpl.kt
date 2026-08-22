@@ -4,28 +4,30 @@ import android.content.Context
 import android.net.Uri
 import com.nuvio.tv.data.iptv.epg.XmltvParser
 import com.nuvio.tv.data.local.iptv.db.IptvDatabaseHelper
+import com.nuvio.tv.domain.model.iptv.IptvChannel
 import com.nuvio.tv.domain.model.iptv.IptvEpgProgram
 import com.nuvio.tv.domain.model.iptv.IptvEpgSource
 import com.nuvio.tv.domain.model.iptv.IptvEpgSourceKind
 import com.nuvio.tv.domain.repository.IptvEpgRepository
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
 import java.io.InputStream
-import java.util.zip.GZIPInputStream
 import java.util.UUID
+import java.util.zip.GZIPInputStream
 import javax.inject.Inject
 import javax.inject.Singleton
-import dagger.hilt.android.qualifiers.ApplicationContext
 
 @Singleton
 class IptvEpgRepositoryImpl @Inject constructor(
@@ -36,47 +38,59 @@ class IptvEpgRepositoryImpl @Inject constructor(
     private val importMutex = Mutex()
 
     override suspend fun refreshEpgForPlaylist(playlistId: String, sourceName: String, epgUrl: String): Result<Int> = withContext(Dispatchers.IO) {
-        val source = IptvEpgSource(id = playlistId, name = sourceName, location = epgUrl, kind = IptvEpgSourceKind.PLAYLIST, playlistId = playlistId)
+        val source = IptvEpgSource(
+            id = "playlist_$playlistId",
+            name = sourceName,
+            location = epgUrl,
+            kind = IptvEpgSourceKind.PLAYLIST,
+            playlistId = playlistId
+        )
         refreshSource(source)
     }
 
-    private suspend fun importEpg(ownerId: String, epgUrl: String): Result<Int> = importMutex.withLock { runCatching {
-            val inputStream: InputStream = if (epgUrl.startsWith("http://") || epgUrl.startsWith("https://")) {
-                val request = Request.Builder().url(epgUrl).build()
+    private suspend fun importEpg(ownerId: String, epgUrl: String): Result<Int> = importMutex.withLock {
+        runCatching {
+            val rawStream: InputStream = if (epgUrl.startsWith("http://") || epgUrl.startsWith("https://")) {
+                val request = Request.Builder()
+                    .url(epgUrl)
+                    .header("Accept-Encoding", "gzip, deflate")
+                    .build()
                 val response = okHttpClient.newCall(request).execute()
                 if (!response.isSuccessful) throw IOException("Failed to download EPG: HTTP ${response.code}")
                 val body = response.body ?: throw IOException("Empty EPG response")
-                val stream = body.byteStream()
-                if (epgUrl.endsWith(".gz", ignoreCase = true)) {
-                    GZIPInputStream(stream)
-                } else {
-                    stream
-                }
+                body.byteStream()
             } else if (epgUrl.startsWith("content://")) {
                 context.contentResolver.openInputStream(Uri.parse(epgUrl))
                     ?: throw IOException("Unable to open the selected EPG file")
             } else {
                 val file = File(epgUrl)
                 if (!file.exists()) throw IOException("Local EPG file not found: $epgUrl")
-                val stream = FileInputStream(file)
-                if (file.name.endsWith(".gz", ignoreCase = true)) {
-                    GZIPInputStream(stream)
-                } else {
-                    stream
-                }
+                FileInputStream(file)
             }
 
-            inputStream.use { stream ->
-                // Providers often ship 100k+ programmes. Keep only IDs that can be displayed
-                // for the user's saved channels; this avoids a huge database and slow guide.
-                val knownTvgIds = dbHelper.getAllChannelTvgIds()
-                val programs = XmltvParser.parse(stream, ownerId).filter { it.channelTvgId in knownTvgIds }
-                if (programs.isEmpty()) throw IOException("No programmes were found in this XMLTV source")
+            wrapDecompressingStream(rawStream).use { stream ->
+                val targetKeys = dbHelper.getAllChannelMatchKeys()
+                val programs = XmltvParser.parse(stream, ownerId, targetKeys)
+                if (programs.isEmpty()) throw IOException("No programmes found for saved channels in this XMLTV source")
                 dbHelper.replaceEpgPrograms(ownerId, programs)
                 dbHelper.removeEpgBefore(System.currentTimeMillis() - 7L * 24L * 60L * 60L * 1000L)
                 programs.size
             }
-    } }
+        }
+    }
+
+    private fun wrapDecompressingStream(rawStream: InputStream): InputStream {
+        val buffered = BufferedInputStream(rawStream, 8192)
+        buffered.mark(2)
+        val b1 = buffered.read()
+        val b2 = buffered.read()
+        buffered.reset()
+        return if (b1 == 0x1f && b2 == 0x8b) {
+            GZIPInputStream(buffered)
+        } else {
+            buffered
+        }
+    }
 
     override fun getCurrentAndNextProgram(tvgId: String): Flow<Pair<IptvEpgProgram?, IptvEpgProgram?>> {
         return dbHelper.dbUpdates
@@ -85,6 +99,18 @@ class IptvEpgRepositoryImpl @Inject constructor(
                 val nowMs = System.currentTimeMillis()
                 val curr = dbHelper.getCurrentProgram(tvgId, nowMs)
                 val next = dbHelper.getNextProgram(tvgId, nowMs)
+                Pair(curr, next)
+            }
+    }
+
+    override fun getCurrentAndNextProgram(channel: IptvChannel): Flow<Pair<IptvEpgProgram?, IptvEpgProgram?>> {
+        val keys = getMatchKeys(channel)
+        return dbHelper.dbUpdates
+            .onStart { emit(Unit) }
+            .map {
+                val nowMs = System.currentTimeMillis()
+                val curr = dbHelper.getCurrentProgram(keys, nowMs)
+                val next = dbHelper.getNextProgram(keys, nowMs)
                 Pair(curr, next)
             }
     }
@@ -101,7 +127,49 @@ class IptvEpgRepositoryImpl @Inject constructor(
             }
     }
 
+    override fun getScheduleForChannel(
+        channel: IptvChannel,
+        windowStartEpochMs: Long,
+        windowEndEpochMs: Long
+    ): Flow<List<IptvEpgProgram>> {
+        val keys = getMatchKeys(channel)
+        return dbHelper.dbUpdates
+            .onStart { emit(Unit) }
+            .map {
+                dbHelper.getSchedule(keys, windowStartEpochMs, windowEndEpochMs)
+            }
+    }
+
+    private fun getMatchKeys(channel: IptvChannel): List<String> {
+        val keys = LinkedHashSet<String>()
+        channel.tvgId?.trim()?.takeIf { it.isNotBlank() }?.let { id ->
+            keys.add(id)
+            keys.add(id.lowercase())
+            val base = id.substringBeforeLast('.')
+            if (base.isNotBlank()) {
+                keys.add(base)
+                keys.add(base.lowercase())
+                val norm = XmltvParser.normalize(base)
+                if (norm.isNotBlank()) keys.add(norm)
+            }
+        }
+        channel.tvgName?.trim()?.takeIf { it.isNotBlank() }?.let { name ->
+            keys.add(name)
+            keys.add(name.lowercase())
+            val norm = XmltvParser.normalize(name)
+            if (norm.isNotBlank()) keys.add(norm)
+        }
+        channel.name.trim().takeIf { it.isNotBlank() }?.let { n ->
+            keys.add(n)
+            keys.add(n.lowercase())
+            val norm = XmltvParser.normalize(n)
+            if (norm.isNotBlank()) keys.add(norm)
+        }
+        return keys.toList()
+    }
+
     override suspend fun clearEpgForPlaylist(playlistId: String) = withContext(Dispatchers.IO) {
+        dbHelper.clearEpgForPlaylist("playlist_$playlistId")
         dbHelper.clearEpgForPlaylist(playlistId)
     }
 
@@ -135,6 +203,13 @@ class IptvEpgRepositoryImpl @Inject constructor(
     }
 
     override suspend fun refreshManualSources(): Result<Int> = withContext(Dispatchers.IO) {
+        runCatching {
+            dbHelper.getEpgSources().filter { it.kind == IptvEpgSourceKind.MANUAL }
+                .sumOf { refreshSource(it).getOrElse { 0 } }
+        }
+    }
+
+    override suspend fun refreshAllEpgSources(): Result<Int> = withContext(Dispatchers.IO) {
         runCatching {
             dbHelper.getEpgSources().sumOf { refreshSource(it).getOrElse { 0 } }
         }

@@ -112,18 +112,16 @@ class LiveTvViewModel @Inject constructor(
         flow {
             val end = start + guideWindowDurationMs
             emit(visibleChannels.associate { channel ->
-                channel.id to channel.tvgId?.takeIf { it.isNotBlank() }
-                    ?.let { epgRepository.getScheduleForChannel(it, start, end).first() }.orEmpty()
+                channel.id to epgRepository.getScheduleForChannel(channel, start, end).first()
             })
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val selectedChannelEpg: StateFlow<Pair<IptvEpgProgram?, IptvEpgProgram?>> = _selectedChannel.flatMapLatest { channel ->
-        val tvgId = channel?.tvgId
-        if (tvgId.isNullOrBlank()) {
+        if (channel == null) {
             flowOf(Pair(null, null))
         } else {
-            epgRepository.getCurrentAndNextProgram(tvgId)
+            epgRepository.getCurrentAndNextProgram(channel)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Pair(null, null))
 

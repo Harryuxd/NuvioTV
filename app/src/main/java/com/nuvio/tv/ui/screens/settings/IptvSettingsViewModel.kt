@@ -174,7 +174,7 @@ class IptvSettingsViewModel @Inject constructor(
     fun refreshAllEpgSources() {
         viewModelScope.launch {
             _uiState.update { it.copy(isRefreshingSources = true) }
-            epgRepository.refreshManualSources()
+            epgRepository.refreshAllEpgSources()
             _uiState.update { it.copy(isRefreshingSources = false) }
         }
     }

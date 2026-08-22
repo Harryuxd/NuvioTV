@@ -7,6 +7,8 @@ import com.nuvio.tv.data.local.iptv.IptvCredentialStore
 import com.nuvio.tv.data.local.iptv.IptvPreferencesDataStore
 import com.nuvio.tv.data.local.iptv.db.IptvDatabaseHelper
 import com.nuvio.tv.domain.model.iptv.IptvChannel
+import com.nuvio.tv.domain.model.iptv.IptvEpgSource
+import com.nuvio.tv.domain.model.iptv.IptvEpgSourceKind
 import com.nuvio.tv.domain.model.iptv.IptvGroup
 import com.nuvio.tv.domain.model.iptv.IptvPlaylist
 import com.nuvio.tv.domain.model.iptv.IptvPlaylistType
@@ -62,14 +64,19 @@ class IptvRepositoryImpl @Inject constructor(
         credentials: XtreamCredentials?
     ): Result<IptvPlaylist> = withContext(Dispatchers.IO) {
         runCatching {
+            var playlistToSave = playlist
             if (playlist.type == IptvPlaylistType.XTREAM && credentials != null) {
                 // Test authentication first
                 xtreamClient.authenticate(credentials).getOrThrow()
                 credentialStore.saveCredentials(playlist.id, credentials)
+                if (playlistToSave.epgUrl.isNullOrBlank()) {
+                    val defaultXtreamEpgUrl = "${credentials.serverUrl.trimEnd('/')}/xmltv.php?username=${credentials.username}&password=${credentials.password}"
+                    playlistToSave = playlistToSave.copy(epgUrl = defaultXtreamEpgUrl)
+                }
             }
 
-            dbHelper.insertOrUpdatePlaylist(playlist)
-            playlist
+            dbHelper.insertOrUpdatePlaylist(playlistToSave)
+            playlistToSave
         }
     }
 
@@ -111,7 +118,8 @@ class IptvRepositoryImpl @Inject constructor(
                     val creds = credentialStore.getCredentials(playlistId)
                         ?: throw IOException("Missing Xtream credentials for playlist $playlistId")
                     val (g, c) = xtreamClient.fetchLiveStreams(playlistId, creds).getOrThrow()
-                    Triple(g, c, null)
+                    val defaultXtreamEpg = "${creds.serverUrl.trimEnd('/')}/xmltv.php?username=${creds.username}&password=${creds.password}"
+                    Triple(g, c, defaultXtreamEpg)
                 }
             }
 
@@ -136,10 +144,18 @@ class IptvRepositoryImpl @Inject constructor(
             val timestamp = System.currentTimeMillis()
             dbHelper.updateRefreshStats(playlistId, timestamp, channels.size)
 
-            // Refresh EPG if available
-            val epgUrl = playlist.epgUrl ?: detectedEpgUrl
-            if (!epgUrl.isNullOrBlank()) {
-                epgRepository.refreshEpgForPlaylist(playlistId, "${playlist.name} guide", epgUrl)
+            // Register & refresh EPG source if available
+            val effectiveEpgUrl = playlist.epgUrl?.takeIf { it.isNotBlank() } ?: detectedEpgUrl
+            if (!effectiveEpgUrl.isNullOrBlank()) {
+                val epgSource = IptvEpgSource(
+                    id = "playlist_$playlistId",
+                    name = "${playlist.name} (Playlist Guide)",
+                    location = effectiveEpgUrl,
+                    kind = IptvEpgSourceKind.PLAYLIST,
+                    playlistId = playlistId
+                )
+                dbHelper.upsertEpgSource(epgSource)
+                epgRepository.refreshSource(epgSource)
             }
 
             channels.size
