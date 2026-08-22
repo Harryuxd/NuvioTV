@@ -30,8 +30,6 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -42,16 +40,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -88,11 +80,12 @@ internal fun TvGuidePane(
     currentProgram: IptvEpgProgram?,
     nextProgram: IptvEpgProgram?,
     isRefreshing: Boolean,
-    previewAudioEnabled: Boolean,
+    player: ExoPlayer?,
+    isPlaying: Boolean,
     onMoveWindow: (Int) -> Unit,
     onNow: () -> Unit,
     onSelectChannel: (IptvChannel) -> Unit,
-    onPlayChannel: (IptvChannel) -> Unit,
+    onExpandFullscreen: () -> Unit,
     onLongClickChannel: (IptvChannel) -> Unit,
     lazyListState: LazyListState = rememberLazyListState(),
     modifier: Modifier = Modifier
@@ -112,8 +105,9 @@ internal fun TvGuidePane(
             channel = selectedChannel,
             program = detailProgram,
             nextProgram = nextProgram,
-            previewAudioEnabled = previewAudioEnabled,
-            onPlay = { selectedChannel?.let(onPlayChannel) }
+            player = player,
+            isPlaying = isPlaying,
+            onExpandFullscreen = onExpandFullscreen
         )
         Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -192,7 +186,7 @@ internal fun TvGuidePane(
                         horizontalScrollState = horizontalScrollState,
                         onChannelClick = {
                             if (selectedChannel?.id == channel.id) {
-                                onPlayChannel(channel)
+                                onExpandFullscreen()
                             } else {
                                 onSelectChannel(channel)
                             }
@@ -211,64 +205,13 @@ internal fun TvGuidePane(
 @Composable
 private fun LiveTvPreviewPlayer(
     channel: IptvChannel?,
-    previewAudioEnabled: Boolean,
+    player: ExoPlayer?,
+    isPlaying: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var exoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
-    var isPlaying by remember { mutableStateOf(false) }
-
-    LaunchedEffect(channel?.id, channel?.streamUrl, previewAudioEnabled) {
-        exoPlayer?.stop()
-        exoPlayer?.clearMediaItems()
-        isPlaying = false
-        val streamUrl = channel?.streamUrl
-        if (streamUrl.isNullOrBlank()) return@LaunchedEffect
-
-        delay(700) // Debounce fast scrolling
-
-        val player = ExoPlayer.Builder(context).build().apply {
-            val mediaItem = MediaItem.fromUri(streamUrl)
-            setMediaItem(mediaItem)
-            volume = if (previewAudioEnabled) 1f else 0f
-            playWhenReady = true
-            addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(state: Int) {
-                    if (state == Player.STATE_READY) {
-                        isPlaying = true
-                    }
-                }
-            })
-            prepare()
-        }
-        exoPlayer = player
-    }
-
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
-                exoPlayer?.pause()
-            } else if (event == Lifecycle.Event.ON_RESUME) {
-                exoPlayer?.play()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            exoPlayer?.release()
-            exoPlayer = null
-        }
-    }
-
     Card(
-        onClick = {
-            exoPlayer?.stop()
-            exoPlayer?.release()
-            exoPlayer = null
-            onClick()
-        },
+        onClick = onClick,
         modifier = modifier
             .width(230.dp)
             .height(130.dp),
@@ -284,20 +227,25 @@ private fun LiveTvPreviewPlayer(
         )
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            if (exoPlayer != null && isPlaying) {
+            if (player != null && isPlaying) {
                 AndroidView(
                     factory = { ctx ->
                         PlayerView(ctx).apply {
                             useController = false
                             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                            this.player = exoPlayer
+                            this.player = player
+                        }
+                    },
+                    update = { view ->
+                        if (view.player != player) {
+                            view.player = player
                         }
                     },
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
                 if (channel != null) {
-                    IptvChannelLogo(channel.name, channel.logoUrl, Modifier.size(54.dp))
+                    IptvChannelLogo(name = channel.name, logoUrl = channel.logoUrl, modifier = Modifier.size(54.dp))
                 } else {
                     Icon(
                         imageVector = Icons.Default.LiveTv,
@@ -321,8 +269,9 @@ private fun GuideDetailHeader(
     channel: IptvChannel?,
     program: IptvEpgProgram?,
     nextProgram: IptvEpgProgram?,
-    previewAudioEnabled: Boolean,
-    onPlay: () -> Unit
+    player: ExoPlayer?,
+    isPlaying: Boolean,
+    onExpandFullscreen: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -335,8 +284,9 @@ private fun GuideDetailHeader(
     ) {
         LiveTvPreviewPlayer(
             channel = channel,
-            previewAudioEnabled = previewAudioEnabled,
-            onClick = onPlay
+            player = player,
+            isPlaying = isPlaying,
+            onClick = onExpandFullscreen
         )
 
         Spacer(Modifier.width(18.dp))
@@ -421,7 +371,6 @@ private fun GuideRow(
 ) {
     val windowEnd = windowStart + GUIDE_MINUTES * 60_000L
 
-    // Clean, sort, and deduplicate overlapping EPG intervals so cards never run into each other
     val cleanPrograms = remember(programs, windowStart) {
         val valid = programs.filter { it.endEpochMs > it.startEpochMs && it.endEpochMs > windowStart && it.startEpochMs < windowEnd }
             .sortedBy { it.startEpochMs }
@@ -450,7 +399,7 @@ private fun GuideRow(
         ) {
             Row(Modifier.fillMaxSize().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(channel.channelNumber?.toString() ?: "•", modifier = Modifier.width(22.dp), color = NuvioTheme.colors.TextTertiary, style = MaterialTheme.typography.labelSmall)
-                IptvChannelLogo(channel.name, channel.logoUrl, Modifier.size(26.dp))
+                IptvChannelLogo(name = channel.name, logoUrl = channel.logoUrl, modifier = Modifier.size(26.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(channel.name, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall.copy(fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium), color = NuvioTheme.colors.TextPrimary)
             }

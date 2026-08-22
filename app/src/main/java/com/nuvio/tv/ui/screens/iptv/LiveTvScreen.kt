@@ -32,6 +32,8 @@ import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,17 +46,22 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.Border
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
-import androidx.tv.material3.Card
-import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
@@ -64,13 +71,13 @@ import androidx.tv.material3.Text
 import com.nuvio.tv.R
 import com.nuvio.tv.domain.model.iptv.IptvChannel
 import com.nuvio.tv.ui.components.LoadingIndicator
-import com.nuvio.tv.ui.screens.iptv.playlist.AddEditPlaylistDialog
 import com.nuvio.tv.ui.theme.NuvioTheme
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun LiveTvScreen(
-    onPlayChannel: (IptvChannel) -> Unit,
+    onPlayChannel: (IptvChannel) -> Unit = {},
     onOpenPlaylistManager: () -> Unit,
     viewModel: LiveTvViewModel = hiltViewModel()
 ) {
@@ -89,11 +96,73 @@ fun LiveTvScreen(
     val previewAudioEnabled by viewModel.previewPlayerAudioEnabled.collectAsState()
     val isInitialLoading by viewModel.isInitialLoading.collectAsState()
 
-    var showAddDialog by remember { mutableStateOf(false) }
     var contextMenuChannel by remember { mutableStateOf<IptvChannel?>(null) }
+    var isFullscreen by remember { mutableStateOf(false) }
 
     val groupsLazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
     val channelsLazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var exoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
+    var isPlaying by remember { mutableStateOf(false) }
+
+    // Single unified ExoPlayer instance for both Preview and Fullscreen playback
+    LaunchedEffect(selectedChannel?.id, selectedChannel?.streamUrl, isFullscreen, previewAudioEnabled) {
+        val streamUrl = selectedChannel?.streamUrl
+        if (streamUrl.isNullOrBlank()) {
+            exoPlayer?.stop()
+            exoPlayer?.clearMediaItems()
+            isPlaying = false
+            return@LaunchedEffect
+        }
+
+        val currentUri = exoPlayer?.currentMediaItem?.localConfiguration?.uri?.toString()
+        if (exoPlayer != null && currentUri == streamUrl) {
+            exoPlayer?.volume = if (isFullscreen || previewAudioEnabled) 1f else 0f
+            return@LaunchedEffect
+        }
+
+        exoPlayer?.stop()
+        exoPlayer?.clearMediaItems()
+        isPlaying = false
+
+        if (!isFullscreen) {
+            delay(500) // Debounce fast channel scrolling
+        }
+
+        val player = exoPlayer ?: ExoPlayer.Builder(context).build().also { exoPlayer = it }
+        player.apply {
+            val mediaItem = MediaItem.fromUri(streamUrl)
+            setMediaItem(mediaItem)
+            volume = if (isFullscreen || previewAudioEnabled) 1f else 0f
+            playWhenReady = true
+            addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(state: Int) {
+                    if (state == Player.STATE_READY) {
+                        isPlaying = true
+                    }
+                }
+            })
+            prepare()
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
+                exoPlayer?.pause()
+            } else if (event == Lifecycle.Event.ON_RESUME) {
+                exoPlayer?.play()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            exoPlayer?.release()
+            exoPlayer = null
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -145,7 +214,7 @@ fun LiveTvScreen(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Button(
-                        onClick = { showAddDialog = true },
+                        onClick = onOpenPlaylistManager,
                         colors = ButtonDefaults.colors(
                             containerColor = NuvioTheme.colors.Secondary,
                             contentColor = NuvioTheme.colors.OnSecondary,
@@ -162,55 +231,52 @@ fun LiveTvScreen(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Add,
                                 contentDescription = null,
-                                tint = NuvioTheme.colors.OnSecondary,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = stringResource(R.string.iptv_add_playlist),
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                color = NuvioTheme.colors.OnSecondary
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
                             )
                         }
                     }
                 }
             }
         } else {
-            // Main Live TV 3-Column Layout
+            // Main Live TV Content
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(start = 28.dp, end = 28.dp, top = 20.dp, bottom = 20.dp)
+                    .padding(start = 24.dp, top = 24.dp, bottom = 24.dp, end = 24.dp)
             ) {
-                // Column 1: Groups & Categories (Width ~240dp)
+                // Left Sidebar: Playlist Header + Groups/Categories
                 Column(
                     modifier = Modifier
-                        .width(240.dp)
+                        .width(260.dp)
                         .fillMaxHeight()
                 ) {
-                    // Header with Playlist Switcher
+                    // Playlist Header + Settings
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = stringResource(R.string.iptv_title),
-                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                text = "LIVE TV",
+                                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                                 color = NuvioTheme.colors.TextPrimary
                             )
                             Text(
-                                text = activePlaylist?.name ?: "",
+                                text = activePlaylist?.name ?: "Playlist",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = NuvioTheme.colors.TextSecondary,
+                                color = NuvioTheme.colors.Secondary,
                                 maxLines = 1
                             )
                         }
@@ -323,36 +389,132 @@ fun LiveTvScreen(
                     currentProgram = currentEpg,
                     nextProgram = nextEpg,
                     isRefreshing = isRefreshing,
-                    previewAudioEnabled = previewAudioEnabled,
+                    player = exoPlayer,
+                    isPlaying = isPlaying,
                     lazyListState = channelsLazyListState,
                     onMoveWindow = viewModel::moveGuideWindow,
                     onNow = viewModel::jumpGuideToNow,
                     onSelectChannel = viewModel::selectChannel,
-                    onPlayChannel = { channel -> viewModel.recordWatched(channel); onPlayChannel(channel) },
+                    onExpandFullscreen = {
+                        selectedChannel?.let { viewModel.recordWatched(it) }
+                        isFullscreen = true
+                    },
                     onLongClickChannel = { contextMenuChannel = it },
                     modifier = Modifier.weight(1f)
                 )
             }
         }
 
+        // Fullscreen Unified Player Overlay
+        if (isFullscreen) {
+            val currentIndex = channels.indexOfFirst { it.id == selectedChannel?.id }
+            LiveTvFullscreenPlayerOverlay(
+                player = exoPlayer,
+                channel = selectedChannel,
+                currentProgram = currentEpg,
+                isPlaying = isPlaying,
+                onToggleFavorite = {
+                    selectedChannel?.let { viewModel.toggleFavorite(it) }
+                },
+                onTogglePlayPause = {
+                    if (exoPlayer?.isPlaying == true) {
+                        exoPlayer?.pause()
+                    } else {
+                        exoPlayer?.play()
+                    }
+                },
+                onNextChannel = {
+                    if (channels.isNotEmpty() && currentIndex >= 0) {
+                        val next = channels[(currentIndex + 1) % channels.size]
+                        viewModel.selectChannel(next)
+                    }
+                },
+                onPreviousChannel = {
+                    if (channels.isNotEmpty() && currentIndex >= 0) {
+                        val prev = channels[(currentIndex - 1 + channels.size) % channels.size]
+                        viewModel.selectChannel(prev)
+                    }
+                },
+                onExitFullscreen = {
+                    isFullscreen = false
+                }
+            )
+        }
+
         contextMenuChannel?.let { ch ->
             ChannelActionMenuDialog(
                 channel = ch,
                 onDismiss = { contextMenuChannel = null },
-                onPlay = { onPlayChannel(ch) },
+                onPlay = {
+                    viewModel.selectChannel(ch)
+                    viewModel.recordWatched(ch)
+                    isFullscreen = true
+                },
                 onToggleFavorite = { viewModel.toggleFavorite(ch) }
             )
         }
+    }
+}
 
-        if (showAddDialog) {
-            AddEditPlaylistDialog(
-                onDismiss = { showAddDialog = false },
-                onSave = { playlist, credentials ->
-                    viewModel.addOrUpdatePlaylist(playlist, credentials) {
-                        showAddDialog = false
-                    }
-                }
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun GroupNavItem(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    channelCount: Int? = null,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(NuvioTheme.radii.sm)),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = if (isSelected) NuvioTheme.colors.BackgroundElevated else Color.Transparent,
+            focusedContainerColor = NuvioTheme.colors.FocusBackground
+        ),
+        border = ClickableSurfaceDefaults.border(
+            focusedBorder = Border(
+                border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs),
+                shape = RoundedCornerShape(NuvioTheme.radii.sm)
             )
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (isSelected) NuvioTheme.colors.Secondary else NuvioTheme.colors.TextSecondary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+            }
+
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                ),
+                color = if (isSelected) NuvioTheme.colors.TextPrimary else NuvioTheme.colors.TextSecondary,
+                maxLines = 1,
+                modifier = Modifier.weight(1f)
+            )
+
+            if (channelCount != null && channelCount > 0) {
+                Text(
+                    text = channelCount.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = NuvioTheme.colors.TextTertiary
+                )
+            }
         }
     }
 }
@@ -367,46 +529,48 @@ private fun LiveTvSearchBar(
 
     Surface(
         onClick = { focusRequester.requestFocus() },
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(NuvioTheme.radii.full)),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(NuvioTheme.radii.md)),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = NuvioTheme.colors.BackgroundElevated,
-            focusedContainerColor = NuvioTheme.colors.BackgroundElevated
+            containerColor = NuvioTheme.colors.BackgroundCard,
+            focusedContainerColor = NuvioTheme.colors.FocusBackground
         ),
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(NuvioTheme.radii.full)),
         border = ClickableSurfaceDefaults.border(
             border = Border(
-                border = BorderStroke(1.dp, NuvioTheme.colors.Border.copy(alpha = 0.6f)),
-                shape = RoundedCornerShape(NuvioTheme.radii.full)
+                border = BorderStroke(1.dp, NuvioTheme.colors.Border),
+                shape = RoundedCornerShape(NuvioTheme.radii.md)
             ),
             focusedBorder = Border(
                 border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs),
-                shape = RoundedCornerShape(NuvioTheme.radii.full)
+                shape = RoundedCornerShape(NuvioTheme.radii.md)
             )
         ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(42.dp)
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .fillMaxSize()
+                .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Default.Search,
-                contentDescription = null,
+                contentDescription = "Search",
                 tint = NuvioTheme.colors.TextTertiary,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(18.dp)
             )
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            Box(modifier = Modifier.weight(1f)) {
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterStart
+            ) {
                 if (query.isEmpty()) {
                     Text(
-                        text = "Search channels...",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = stringResource(R.string.iptv_search_channels),
+                        style = MaterialTheme.typography.bodyMedium,
                         color = NuvioTheme.colors.TextTertiary
                     )
                 }
@@ -414,15 +578,16 @@ private fun LiveTvSearchBar(
                 BasicTextField(
                     value = query,
                     onValueChange = onQueryChange,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester),
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    textStyle = MaterialTheme.typography.bodySmall.copy(
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(
                         color = NuvioTheme.colors.TextPrimary
                     ),
-                    cursorBrush = SolidColor(NuvioTheme.colors.Secondary)
+                    cursorBrush = SolidColor(NuvioTheme.colors.Secondary),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = {}),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
                 )
             }
 
@@ -434,9 +599,9 @@ private fun LiveTvSearchBar(
                         containerColor = Color.Transparent,
                         focusedContainerColor = NuvioTheme.colors.FocusBackground
                     ),
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(24.dp)
                 ) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.Clear,
                             contentDescription = "Clear",
