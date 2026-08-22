@@ -15,6 +15,7 @@ import com.nuvio.tv.domain.model.Stream
 import com.nuvio.tv.domain.model.Subtitle
 import com.nuvio.tv.domain.model.Video
 import com.nuvio.tv.domain.model.WatchProgress
+import com.nuvio.tv.domain.model.iptv.IptvChannel
 import com.nuvio.tv.ui.components.SourceChipItem
 
 enum class PlayerExitReason {
@@ -157,6 +158,12 @@ data class PlayerUiState(
     val sourceFilteredStreams: List<Stream> = emptyList(),
     val sourceAvailableAddons: List<String> = emptyList(),
     val sourceChips: List<SourceChipItem> = emptyList(),
+    // IPTV sources are alternate channel feeds, not addon Stream results.
+    val isIptvSourcesPanel: Boolean = false,
+    val isLoadingIptvAlternatives: Boolean = false,
+    val iptvAlternativesError: String? = null,
+    val iptvAlternativeChannels: List<IptvChannel> = emptyList(),
+    val currentIptvChannelId: String? = null,
     val showFileSizeBadges: Boolean = true,
     val showAddonLogo: Boolean = true,
     val streamBadgePlacement: StreamBadgePlacement = StreamBadgePlacement.BOTTOM,
@@ -306,6 +313,7 @@ sealed class PlayerEvent {
     data object OnReloadSourceStreams : PlayerEvent()
     data class OnSourceAddonFilterSelected(val addonName: String?) : PlayerEvent()
     data class OnSourceStreamSelected(val stream: Stream) : PlayerEvent()
+    data class OnIptvAlternativeSelected(val channel: IptvChannel) : PlayerEvent()
     data object OnDismissTransientOverlay : PlayerEvent()
     data object OnRetry : PlayerEvent()
     data object OnReportPlaybackIssue : PlayerEvent()

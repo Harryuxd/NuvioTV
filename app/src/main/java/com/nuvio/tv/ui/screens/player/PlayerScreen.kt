@@ -1301,6 +1301,7 @@ fun PlayerScreen(
                     onReload = { viewModel.onEvent(PlayerEvent.OnReloadSourceStreams) },
                     onAddonFilterSelected = { viewModel.onEvent(PlayerEvent.OnSourceAddonFilterSelected(it)) },
                     onStreamSelected = { viewModel.onEvent(PlayerEvent.OnSourceStreamSelected(it)) },
+                    onIptvAlternativeSelected = { viewModel.onEvent(PlayerEvent.OnIptvAlternativeSelected(it)) },
                     modifier = Modifier.align(Alignment.CenterEnd)
                 )
             }

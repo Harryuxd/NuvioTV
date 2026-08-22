@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Nuvio</string>
+    <string name="app_name">JuloTV</string>
     <string name="tv_channel_continue_watching">Continue Watching</string>
     <string name="type_movie">Movie</string>
     <string name="type_movies">Movies</string>
@@ -3056,5 +3056,50 @@
     <string name="stream_test_error_prefix">Error: %1$s</string>
     <string name="stream_test_video_bitrate">Average Video Bitrate: %1$s</string>
     <string name="stream_test_error_connection">Connection failed. The last played stream link may have expired or is unreachable. Please play the video again and retry.</string>
+
+    <!-- Live TV & IPTV -->
+    <string name="nav_livetv">Live TV</string>
+    <string name="iptv_title">Live TV</string>
+    <string name="iptv_playlists">Playlists</string>
+    <string name="iptv_manage_playlists">Manage Playlists</string>
+    <string name="iptv_add_playlist">Add Playlist</string>
+    <string name="iptv_edit_playlist">Edit Playlist</string>
+    <string name="iptv_delete_playlist">Delete Playlist</string>
+    <string name="iptv_playlist_name">Playlist Name</string>
+    <string name="iptv_playlist_type">Source Type</string>
+    <string name="iptv_m3u_url">M3U / M3U8 URL</string>
+    <string name="iptv_m3u_file">Local M3U File</string>
+    <string name="iptv_select_file">Choose File</string>
+    <string name="iptv_epg_url">Custom EPG XMLTV URL (Optional)</string>
+    <string name="iptv_xtream_server">Server URL (e.g. http://server.com:8080)</string>
+    <string name="iptv_xtream_user">Username</string>
+    <string name="iptv_xtream_pass">Password</string>
+    <string name="iptv_type_m3u">M3U / M3U8 Playlist</string>
+    <string name="iptv_type_xtream">Xtream Codes</string>
+    <string name="iptv_refresh_playlist">Refresh Playlist</string>
+    <string name="iptv_refreshing">Syncing playlist channels &amp; EPG…</string>
+    <string name="iptv_no_playlists">No IPTV playlists added</string>
+    <string name="iptv_no_playlists_sub">Add an M3U URL or Xtream Codes subscription to start watching Live TV.</string>
+    <string name="iptv_no_channels">No channels found in this group</string>
+    <string name="iptv_search_channels">Search channels…</string>
+    <string name="iptv_group_all">All Channels</string>
+    <string name="iptv_group_favorites">Favorites</string>
+    <string name="iptv_group_recents">Recently Watched</string>
+    <string name="iptv_now_playing">Now: %1$s</string>
+    <string name="iptv_next_up">Next: %1$s</string>
+    <string name="iptv_no_epg">No program guide information</string>
+    <string name="iptv_channel_zap_prev">Previous Channel</string>
+    <string name="iptv_channel_zap_next">Next Channel</string>
+    <string name="iptv_favorite_added">Added to favorites</string>
+    <string name="iptv_favorite_removed">Removed from favorites</string>
+    <string name="iptv_channel_count">%1$d channels</string>
+    <string name="iptv_error_loading">Failed to load playlist: %1$s</string>
+    <string name="iptv_error_auth">Xtream Codes authentication failed</string>
+    <string name="iptv_error_empty">Playlist contains no playable streams</string>
+    <string name="iptv_confirm_delete_title">Delete Playlist?</string>
+    <string name="iptv_confirm_delete_msg">Are you sure you want to remove \"%1$s\" and all its channels?</string>
+    <string name="iptv_delete">Delete</string>
+    <string name="iptv_save">Save</string>
+    <string name="iptv_cancel">Cancel</string>
 
 </resources>

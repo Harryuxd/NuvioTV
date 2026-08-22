@@ -43,6 +43,8 @@ benchmarkMacro = "1.4.1"
 androidxTestExtJunit = "1.2.1"
 androidxTestRunner = "1.6.2"
 uiautomator = "2.3.0"
+room = "2.6.1"
+securityCrypto = "1.1.0-alpha06"
 profileinstaller = "1.4.1"
 baselineProfilePlugin = "1.4.1"
 
@@ -135,6 +137,14 @@ sentry-android = { group = "io.sentry", name = "sentry-android", version.ref = "
 
 # Kotlinx Serialization
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+# Room
+room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+
+# Security
+security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+
 androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmarkMacro" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }

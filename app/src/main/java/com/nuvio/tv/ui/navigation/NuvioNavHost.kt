@@ -47,6 +47,8 @@ import com.nuvio.tv.ui.screens.cast.CastDetailScreen
 import com.nuvio.tv.ui.screens.profile.ProfileSelectionMode
 import com.nuvio.tv.ui.screens.profile.ProfileSelectionScreen
 import com.nuvio.tv.ui.screens.tmdb.TmdbEntityBrowseScreen
+import com.nuvio.tv.ui.screens.iptv.LiveTvScreen
+import com.nuvio.tv.ui.screens.iptv.playlist.PlaylistManagerScreen
 import com.nuvio.tv.ui.screens.home.HeroBackdropState
 
 @Composable
@@ -1014,7 +1016,23 @@ fun NuvioNavHost(
                         Screen.CatalogSeeAll.createRoute(catalogId, addonId, type, fromSearch = true)
                     )
                 },
-                onOpenDiscover = { navController.navigate(Screen.Discover.route) }
+                onOpenDiscover = { navController.navigate(Screen.Discover.route) },
+                onPlayIptvChannel = { channel ->
+                    navController.navigate(
+                        Screen.Player.createRoute(
+                            streamUrl = channel.streamUrl,
+                            title = channel.name,
+                            streamName = channel.name,
+                            contentType = "iptv",
+                            contentName = channel.groupTitle,
+                            headers = channel.headers.takeIf { it.isNotEmpty() },
+                            poster = channel.logoUrl,
+                            logo = channel.logoUrl,
+                            videoId = channel.id,
+                            iptvChannelId = channel.id
+                        )
+                    )
+                }
             )
         }
 
@@ -1032,6 +1050,36 @@ fun NuvioNavHost(
                         )
                     )
                 }
+            )
+        }
+
+        composable(Screen.LiveTv.route) {
+            LiveTvScreen(
+                onPlayChannel = { channel ->
+                    navController.navigate(
+                        Screen.Player.createRoute(
+                            streamUrl = channel.streamUrl,
+                            title = channel.name,
+                            streamName = channel.name,
+                            contentType = "iptv",
+                            contentName = channel.groupTitle,
+                            headers = channel.headers.takeIf { it.isNotEmpty() },
+                            poster = channel.logoUrl,
+                            logo = channel.logoUrl,
+                            videoId = channel.id,
+                            iptvChannelId = channel.id
+                        )
+                    )
+                },
+                onOpenPlaylistManager = {
+                    navController.navigate(Screen.IptvPlaylistManager.route)
+                }
+            )
+        }
+
+        composable(Screen.IptvPlaylistManager.route) {
+            PlaylistManagerScreen(
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
@@ -1078,6 +1126,9 @@ fun NuvioNavHost(
                 },
                 onNavigateToLicensesAttributions = {
                     navController.navigate(Screen.LicensesAttributions.route)
+                },
+                onNavigateToPlaylistManager = {
+                    navController.navigate(Screen.IptvPlaylistManager.route)
                 }
             )
         }

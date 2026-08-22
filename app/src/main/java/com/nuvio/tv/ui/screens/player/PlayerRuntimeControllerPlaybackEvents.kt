@@ -1526,13 +1526,20 @@ fun PlayerRuntimeController.onEvent(event: PlayerEvent) {
             dismissSourcesPanel()
         }
         PlayerEvent.OnReloadSourceStreams -> {
-            loadSourceStreams(forceRefresh = true)
+            if (_uiState.value.isIptvSourcesPanel) {
+                loadIptvAlternatives(forceRefresh = true)
+            } else {
+                loadSourceStreams(forceRefresh = true)
+            }
         }
         is PlayerEvent.OnSourceAddonFilterSelected -> {
             filterSourceStreamsByAddon(event.addonName)
         }
         is PlayerEvent.OnSourceStreamSelected -> {
             switchToSourceStream(event.stream)
+        }
+        is PlayerEvent.OnIptvAlternativeSelected -> {
+            switchToIptvAlternative(event.channel)
         }
         PlayerEvent.OnDismissTransientOverlay -> {
             _uiState.update {

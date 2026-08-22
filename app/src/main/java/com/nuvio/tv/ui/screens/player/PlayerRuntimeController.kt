@@ -47,6 +47,7 @@ import com.nuvio.tv.domain.model.WatchProgress
 import com.nuvio.tv.domain.repository.AddonRepository
 import com.nuvio.tv.domain.repository.MetaRepository
 import com.nuvio.tv.domain.repository.StreamRepository
+import com.nuvio.tv.domain.repository.IptvRepository
 import com.nuvio.tv.domain.repository.WatchProgressRepository
 import androidx.media3.session.MediaSession
 import kotlinx.coroutines.CoroutineScope
@@ -67,6 +68,7 @@ class PlayerRuntimeController(
     internal val watchProgressRepository: WatchProgressRepository,
     internal val metaRepository: MetaRepository,
     internal val streamRepository: StreamRepository,
+    internal val iptvRepository: IptvRepository,
     internal val addonRepository: AddonRepository,
     internal val pluginManager: PluginManager,
     internal val subtitleRepository: com.nuvio.tv.domain.repository.SubtitleRepository,
@@ -178,6 +180,7 @@ class PlayerRuntimeController(
     internal val rememberedAudioLanguage: String? = navigationArgs.rememberedAudioLanguage
     internal val rememberedAudioName: String? = navigationArgs.rememberedAudioName
     internal val cloudSessionToken: String? = navigationArgs.cloudSessionToken
+    internal var currentIptvChannelId: String? = navigationArgs.iptvChannelId
     internal val mediaSourceFactory = PlayerMediaSourceFactory(context.applicationContext)
 
     internal var currentVideoHash: String? = navigationArgs.videoHash
@@ -233,6 +236,7 @@ class PlayerRuntimeController(
             currentStreamInfoHash = navigationArgs.infoHash,
             currentStreamFileIdx = navigationArgs.fileIdx,
             currentStreamAddonName = navigationArgs.addonName,
+            currentIptvChannelId = currentIptvChannelId,
             releaseYear = year,
             contentType = contentType,
             backdrop = backdrop,

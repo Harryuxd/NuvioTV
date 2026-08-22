@@ -190,8 +190,8 @@ android {
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("release")
-            isDebuggable = false
+            signingConfig = signingConfigs.getByName("debug")
+            isDebuggable = true
             isMinifyEnabled = false
 
             buildConfigField("boolean", "IS_DEBUG_BUILD", "true")
@@ -442,6 +442,9 @@ dependencies {
 
     // DataStore
     implementation(libs.datastore.preferences)
+
+    // Security & Encryption
+    implementation(libs.security.crypto)
 
     // ViewModel
     implementation(libs.lifecycle.viewmodel.compose)

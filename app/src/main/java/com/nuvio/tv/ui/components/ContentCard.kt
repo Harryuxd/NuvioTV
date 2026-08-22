@@ -102,15 +102,24 @@ fun ContentCard(
 ) {
     val cardShape = remember(posterCardStyle.cornerRadius) { RoundedCornerShape(posterCardStyle.cornerRadius) }
     val cardDepthStyle = LocalCardDepthStyle.current
-    val baseCardWidth = when (item.posterShape) {
-        PosterShape.POSTER -> posterCardStyle.width
-        PosterShape.LANDSCAPE -> 260.dp
-        PosterShape.SQUARE -> 170.dp
+    val isChannelLike = remember(item.apiType, item.rawType, item.id) {
+        item.apiType.equals("channel", ignoreCase = true) ||
+            item.rawType.equals("channel", ignoreCase = true) ||
+            item.id.startsWith("iptv:", ignoreCase = true)
     }
-    val baseCardHeight = when (item.posterShape) {
-        PosterShape.POSTER -> posterCardStyle.height
-        PosterShape.LANDSCAPE -> 148.dp
-        PosterShape.SQUARE -> 170.dp
+    val baseCardWidth = when {
+        isChannelLike -> 180.dp
+        item.posterShape == PosterShape.POSTER -> posterCardStyle.width
+        item.posterShape == PosterShape.LANDSCAPE -> 260.dp
+        item.posterShape == PosterShape.SQUARE -> 170.dp
+        else -> posterCardStyle.width
+    }
+    val baseCardHeight = when {
+        isChannelLike -> 92.dp
+        item.posterShape == PosterShape.POSTER -> posterCardStyle.height
+        item.posterShape == PosterShape.LANDSCAPE -> 148.dp
+        item.posterShape == PosterShape.SQUARE -> 170.dp
+        else -> posterCardStyle.height
     }
     val expandedCardWidth = baseCardHeight * BACKDROP_ASPECT_RATIO
 
@@ -131,6 +140,9 @@ fun ContentCard(
     val lastFocusedRef = remember { booleanArrayOf(false) }
 
     val isPlaceholderItem = item.poster == PLACEHOLDER_IMAGE_URL
+    val useFitForPrimaryArtwork = remember(isChannelLike, item.posterShape) {
+        isChannelLike && item.posterShape == PosterShape.LANDSCAPE
+    }
 
     if (focusedPosterBackdropExpandEnabled && !isPlaceholderItem) {
         LaunchedEffect(
@@ -380,11 +392,13 @@ fun ContentCard(
                     AsyncImage(
                         model = imageModel,
                         contentDescription = item.name,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .then(if (isChannelLike) Modifier.padding(horizontal = 14.dp, vertical = 8.dp) else Modifier),
                         placeholder = backgroundPainter,
                         error = backgroundPainter,
                         fallback = backgroundPainter,
-                        contentScale = ContentScale.Crop
+                        contentScale = if (useFitForPrimaryArtwork) ContentScale.Fit else ContentScale.Crop
                     )
                 } else {
                     MonochromePosterPlaceholder()

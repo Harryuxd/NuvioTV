@@ -1,5 +1,6 @@
 package com.nuvio.tv.ui.components
 
+import com.nuvio.tv.domain.model.ContentType
 import com.nuvio.tv.ui.theme.NuvioTheme
 
 import androidx.compose.foundation.BorderStroke
@@ -359,14 +360,18 @@ fun CatalogRowSection(
                 )
             }
 
+            val isChannelRow = catalogRow.type == ContentType.CHANNEL || catalogRow.rawType.equals("channel", ignoreCase = true)
+            val rowCardWidth = if (isChannelRow) 180.dp else posterCardStyle.width
+            val rowCardHeight = if (isChannelRow) 92.dp else posterCardStyle.height
+
             if (!showSeeAll && catalogRow.isLoading) {
                 item(key = "${catalogRow.type}_${catalogRow.catalogId}_loading") {
                     val cardDepthStyle = LocalCardDepthStyle.current
                     Card(
                         onClick = {},
                         modifier = Modifier
-                            .width(posterCardStyle.width)
-                            .height(posterCardStyle.height)
+                            .width(rowCardWidth)
+                            .height(rowCardHeight)
                             .focusProperties { canFocus = false },
                         shape = CardDefaults.shape(shape = seeAllCardShape),
                         colors = CardDefaults.colors(
@@ -396,8 +401,8 @@ fun CatalogRowSection(
                     Card(
                         onClick = onSeeAll,
                         modifier = Modifier
-                            .width(posterCardStyle.width)
-                            .height(posterCardStyle.height)
+                            .width(rowCardWidth)
+                            .height(rowCardHeight)
                             .then(directionalFocusModifier),
                         shape = CardDefaults.shape(shape = seeAllCardShape),
                         colors = CardDefaults.colors(

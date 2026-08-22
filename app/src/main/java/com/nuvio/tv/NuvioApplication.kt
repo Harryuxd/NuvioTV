@@ -23,6 +23,7 @@ import com.nuvio.tv.core.image.StaleWhileRevalidateCacheStrategy
 import com.nuvio.tv.core.runtime.PluginRuntimeHooks
 import com.nuvio.tv.core.sync.StartupSyncService
 import com.nuvio.tv.core.sync.androidtv.AndroidTvChannelSyncService
+import com.nuvio.tv.core.sync.iptv.IptvEpgRefreshJobService
 import com.nuvio.tv.core.network.IPv4FirstDns
 import com.nuvio.tv.data.local.SentrySettingsDataStore
 import com.nuvio.tv.data.simkl.SimklAnimeIdPreferenceHolder
@@ -78,6 +79,7 @@ class NuvioApplication : Application(), SingletonImageLoader.Factory {
         SentryInitializer.start(this, sentrySettingsDataStore)
         PluginRuntimeHooks.onApplicationCreate(this)
         androidTvChannelSyncService.start()
+        IptvEpgRefreshJobService.schedule(this)
         // Load locale synchronously so it's available before Activity.attachBaseContext.
         // SharedPreferences reads are fast (cached in memory after first access).
         val tag = getSharedPreferences("app_locale", Context.MODE_PRIVATE)

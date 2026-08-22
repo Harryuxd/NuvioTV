@@ -49,6 +49,7 @@ class SearchViewModel @Inject constructor(
     private val addonRepository: AddonRepository,
     private val catalogRepository: CatalogRepository,
     private val metaRepository: com.nuvio.tv.domain.repository.MetaRepository,
+    private val iptvRepository: com.nuvio.tv.domain.repository.IptvRepository,
     private val layoutPreferenceDataStore: LayoutPreferenceDataStore,
     private val searchHistoryDataStore: SearchHistoryDataStore,
     private val watchProgressRepository: com.nuvio.tv.domain.repository.WatchProgressRepository,
@@ -56,6 +57,13 @@ class SearchViewModel @Inject constructor(
     val posterOptions: com.nuvio.tv.ui.components.posteroptions.PosterOptionsController,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
+
+    private val iptvChannelsMap = java.util.concurrent.ConcurrentHashMap<String, com.nuvio.tv.domain.model.iptv.IptvChannel>()
+
+    fun getIptvChannel(channelId: String): com.nuvio.tv.domain.model.iptv.IptvChannel? {
+        val cleanId = if (channelId.startsWith("iptv:")) channelId.removePrefix("iptv:") else channelId
+        return iptvChannelsMap[cleanId]
+    }
 
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
@@ -349,7 +357,31 @@ class SearchViewModel @Inject constructor(
                 }
             }
 
+            val iptvSuggestionJob = launch {
+                try {
+                    val playlists = iptvRepository.getPlaylists().first()
+                    for (playlist in playlists) {
+                        val channels = iptvRepository.getChannels(playlist.id, query = query).first()
+                        var added = false
+                        channels.take(15).forEach { ch ->
+                            if (collectedNames.add(ch.name)) added = true
+                        }
+                        if (added && _uiState.value.query.trim() == query) {
+                            val sorted = collectedNames
+                                .sortedWith(
+                                    compareByDescending<String> { it.lowercase().startsWith(queryLower) }
+                                        .thenBy { it.lowercase() }
+                                )
+                                .take(MAX_SUGGESTIONS)
+                            _uiState.update { it.copy(suggestions = sorted) }
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+            }
+
             suggestionJobs.joinAll()
+            iptvSuggestionJob.join()
         }
     }
 
@@ -505,17 +537,6 @@ class SearchViewModel @Inject constructor(
             // results and the placeholders below, which is the flash this screen used to show.
             _uiState.update { it.copy(isSearching = true, error = null, installedAddons = addons) }
 
-            if (searchTargets.isEmpty()) {
-                _uiState.update {
-                    it.copy(
-                        isSearching = false,
-                        error = context.getString(R.string.search_error_no_catalogs),
-                        catalogRows = emptyList()
-                    )
-                }
-                return@launch
-            }
-
             // Preserve addon manifest order.
             searchTargets.forEach { (addon, catalog) ->
                 val key = catalogKey(
@@ -581,11 +602,67 @@ class SearchViewModel @Inject constructor(
                 if (showingRealRows) state else state.copy(catalogRows = placeholderRows)
             }
 
-            val jobs = searchTargets.map { (addon, catalog) ->
+            val iptvSearchJob = launch {
+                try {
+                    val playlists = iptvRepository.getPlaylists().first()
+                    if (playlists.isNotEmpty()) {
+                        val matchingChannels = mutableListOf<com.nuvio.tv.domain.model.iptv.IptvChannel>()
+                        for (playlist in playlists) {
+                            val channels = iptvRepository.getChannels(playlist.id, query = query).first()
+                            matchingChannels.addAll(channels)
+                        }
+                        if (matchingChannels.isNotEmpty() && generation == searchGeneration && activeSearchQuery == query) {
+                            matchingChannels.forEach { iptvChannelsMap[it.id] = it }
+                            val iptvRow = CatalogRow(
+                                addonId = "iptv",
+                                addonName = "Live TV",
+                                addonBaseUrl = "iptv://",
+                                catalogId = "iptv_channels",
+                                catalogName = "Live TV Channels",
+                                type = ContentType.CHANNEL,
+                                rawType = "channel",
+                                items = matchingChannels.map { channel ->
+                                    MetaPreview(
+                                        id = "iptv:${channel.id}",
+                                        type = ContentType.CHANNEL,
+                                        name = channel.name,
+                                        poster = channel.logoUrl ?: PLACEHOLDER_IMAGE_URL,
+                                        posterShape = PosterShape.LANDSCAPE,
+                                        background = null,
+                                        logo = channel.logoUrl,
+                                        description = channel.groupTitle.takeIf { it.isNotBlank() },
+                                        releaseInfo = channel.groupTitle,
+                                        imdbRating = null,
+                                        genres = listOfNotNull(channel.groupTitle.takeIf { it.isNotBlank() })
+                                    )
+                                },
+                                isLoading = false,
+                                hasMore = false,
+                                currentPage = 0,
+                                supportsSkip = false,
+                                skipStep = 0,
+                                extraArgs = emptyMap()
+                            )
+                            val key = iptvRow.stableKey()
+                            synchronized(catalogsMap) {
+                                catalogsMap[key] = iptvRow
+                                if (key !in catalogOrder) {
+                                    catalogOrder.add(0, key)
+                                }
+                            }
+                            scheduleCatalogRowsUpdate()
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+            }
+
+            val catalogJobs = searchTargets.map { (addon, catalog) ->
                 launch {
                     loadCatalog(addon, catalog, query, generation)
                 }
             }
+            val jobs = catalogJobs + iptvSearchJob
             pendingCatalogResponses = jobs.size
             activeSearchJobs = jobs
 
@@ -607,6 +684,13 @@ class SearchViewModel @Inject constructor(
                     if (rememberToHistory && catalogsMap.values.any { row -> row.items.isNotEmpty() }) {
                         viewModelScope.launch {
                             searchHistoryDataStore.saveRecentSearch(query, MAX_RECENT_SEARCHES)
+                        }
+                    }
+                    // IPTV is a first-class search source, so an IPTV-only setup must still be
+                    // searchable when no Stremio addon catalogs are enabled.
+                    if (searchTargets.isEmpty() && catalogsMap.values.none { it.addonId == "iptv" }) {
+                        _uiState.update { state ->
+                            state.copy(error = context.getString(R.string.search_error_no_catalogs))
                         }
                     }
                 }

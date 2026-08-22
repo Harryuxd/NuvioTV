@@ -39,6 +39,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -118,7 +119,8 @@ fun SearchScreen(
     viewModel: SearchViewModel = hiltViewModel(),
     onNavigateToDetail: (String, String, String) -> Unit,
     onNavigateToSeeAll: (catalogId: String, addonId: String, type: String) -> Unit = { _, _, _ -> },
-    onOpenDiscover: () -> Unit = {}
+    onOpenDiscover: () -> Unit = {},
+    onPlayIptvChannel: ((com.nuvio.tv.domain.model.iptv.IptvChannel) -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val watchedMovieIds by viewModel.watchedMovieIds.collectAsState()
@@ -730,6 +732,13 @@ fun SearchScreen(
                                     lastFocusedRowKey = catalogKey
                                 },
                                 onItemClick = { id, type, addonBaseUrl ->
+                                    if (id.startsWith("iptv:")) {
+                                        val channel = viewModel.getIptvChannel(id)
+                                        if (channel != null && onPlayIptvChannel != null) {
+                                            onPlayIptvChannel(channel)
+                                            return@CatalogRowSection
+                                        }
+                                    }
                                     lastFocusedRowKey = catalogKey
                                     // Save focus state to ViewModel before navigating
                                     viewModel.savedFocusRowKey = catalogKey
@@ -806,6 +815,13 @@ fun SearchScreen(
         state = posterOptionsState,
         controller = viewModel.posterOptions,
         onNavigateToDetail = { id, type, addonBaseUrl ->
+            if (id.startsWith("iptv:")) {
+                val channel = viewModel.getIptvChannel(id)
+                if (channel != null && onPlayIptvChannel != null) {
+                    onPlayIptvChannel(channel)
+                    return@PosterOptionsHost
+                }
+            }
             val clickedItem = uiState.catalogRows
                 .flatMap { it.items }
                 .firstOrNull { it.id == id }
@@ -1027,11 +1043,11 @@ private fun SearchInputField(
                         .border(
                             width = if (isVoiceButtonFocused || isVoiceListening) NuvioTheme.spacing.xxs else NuvioTheme.spacing.hairline,
                             color = if (isVoiceListening) themeAccent else if (isVoiceButtonFocused) NuvioTheme.colors.FocusRing else NuvioTheme.colors.Border,
-                            shape = RoundedCornerShape(NuvioTheme.radii.md)
+                            shape = CircleShape
                         )
                         .background(
                             color = if (isVoiceListening) themeAccent.copy(alpha = 0.15f) else NuvioTheme.colors.BackgroundCard,
-                            shape = RoundedCornerShape(NuvioTheme.radii.md)
+                            shape = CircleShape
                         )
                 ) {
                     Icon(
@@ -1102,7 +1118,7 @@ private fun SearchInputField(
                 }
             ),
             singleLine = true,
-            shape = RoundedCornerShape(NuvioTheme.radii.md),
+            shape = RoundedCornerShape(NuvioTheme.radii.full),
             placeholder = {
                 Text(
                     text = stringResource(R.string.search_placeholder),
@@ -1133,11 +1149,11 @@ private fun SearchInputField(
                     .border(
                         width = if (isClearButtonFocused) NuvioTheme.spacing.xxs else NuvioTheme.spacing.hairline,
                         color = if (isClearButtonFocused) NuvioTheme.colors.FocusRing else NuvioTheme.colors.Border,
-                        shape = RoundedCornerShape(NuvioTheme.radii.md)
+                        shape = CircleShape
                     )
                     .background(
                         color = NuvioTheme.colors.BackgroundCard,
-                        shape = RoundedCornerShape(NuvioTheme.radii.md)
+                        shape = CircleShape
                     )
             ) {
                 Icon(

@@ -41,6 +41,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import com.nuvio.tv.domain.model.Stream
+import com.nuvio.tv.domain.model.iptv.IptvChannel
 import com.nuvio.tv.ui.components.LoadingIndicator
 import com.nuvio.tv.ui.theme.NuvioTheme
 import androidx.compose.ui.res.stringResource
@@ -56,8 +57,20 @@ internal fun StreamSourcesSidePanel(
     onReload: () -> Unit,
     onAddonFilterSelected: (String?) -> Unit,
     onStreamSelected: (Stream) -> Unit,
+    onIptvAlternativeSelected: (IptvChannel) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    if (uiState.isIptvSourcesPanel) {
+        IptvAlternativesSidePanel(
+            uiState = uiState,
+            focusRequester = streamsFocusRequester,
+            onClose = onClose,
+            onReload = onReload,
+            onChannelSelected = onIptvAlternativeSelected,
+            modifier = modifier
+        )
+        return
+    }
     // Request focus when loading finishes OR when the list content updates
     // (ensures higher-priority addons get focus if they load later)
     LaunchedEffect(uiState.isLoadingSourceStreams, uiState.sourceFilteredStreams.size) {

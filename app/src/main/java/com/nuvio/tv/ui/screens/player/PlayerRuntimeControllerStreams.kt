@@ -143,7 +143,11 @@ internal fun PlayerRuntimeController.showSourcesPanel() {
             showEpisodeStreams = false
         )
     }
-    loadSourceStreams(forceRefresh = false)
+    if (currentIptvChannelId != null && contentType == "iptv") {
+        loadIptvAlternatives(forceRefresh = false)
+    } else {
+        loadSourceStreams(forceRefresh = false)
+    }
 }
 
 internal fun PlayerRuntimeController.buildSourceRequestKey(type: String, videoId: String, season: Int?, episode: Int?): String {
@@ -373,6 +377,9 @@ internal fun PlayerRuntimeController.dismissSourcesPanel() {
     _uiState.update {
         it.copy(
             showSourcesPanel = false,
+            isIptvSourcesPanel = false,
+            isLoadingIptvAlternatives = false,
+            iptvAlternativesError = null,
             isLoadingSourceStreams = false
         )
     }

@@ -33,6 +33,7 @@ internal data class PlayerNavigationArgs(
     val sourcesJson: String?,
     val contentLanguage: String?,
     val cloudSessionToken: String?,
+    val iptvChannelId: String?,
     val rememberedAudioLanguage: String?,
     val rememberedAudioName: String?,
     val launchStartedAtMs: Long?
@@ -92,6 +93,7 @@ internal data class PlayerNavigationArgs(
                 sourcesJson = decodedOrNull("sources"),
                 contentLanguage = decodedOrNull("contentLanguage"),
                 cloudSessionToken = decodedOrNull("cloudSessionToken"),
+                iptvChannelId = savedStateHandle.get<String>("iptvChannelId")?.takeIf { it.isNotEmpty() },
                 rememberedAudioLanguage = decodedOrNull("rememberedAudioLanguage"),
                 rememberedAudioName = decodedOrNull("rememberedAudioName"),
                 launchStartedAtMs = savedStateHandle.get<String>("launchStartedAtMs")?.toLongOrNull()
