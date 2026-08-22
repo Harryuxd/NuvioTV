@@ -90,6 +90,14 @@ private val OverlayOutlineColors = listOf(
     Color(0xFFFF5C5C)
 )
 
+private val OverlayContainerColors = listOf(
+    Color.Black,
+    Color(0xFF1A1A1A),
+    Color(0xFF1E293B),
+    Color(0xFF0F172A),
+    Color.Transparent
+)
+
 private const val RailFadeDurationMs = 120
 
 @Composable
@@ -891,6 +899,53 @@ private fun SubtitleStyleRail(
                 }
             }
             item {
+                OverlaySectionCard(title = "Container Fill Color") {
+                    val currentBg = Color(subtitleStyle.backgroundColor)
+                    val currentBgAlpha = currentBg.alpha
+                    ColorChipRow(
+                        colors = OverlayContainerColors,
+                        selectedColor = if (currentBg.alpha == 0f) Color.Transparent.toArgb() else currentBg.copy(alpha = 1f).toArgb(),
+                        onMoveLeft = onMoveLeft,
+                        focusRequesters = focusRequesters,
+                        focusKeyPrefix = StyleFocusKey.ContainerColorPrefix,
+                        onFocused = onStyleFocused,
+                        onColorSelected = { color ->
+                            if (color == Color.Transparent.toArgb()) {
+                                onEvent(PlayerEvent.OnSetSubtitleBackgroundColor(Color.Transparent.toArgb()))
+                            } else {
+                                val alphaToUse = if (currentBgAlpha <= 0.05f) 0.8f else currentBgAlpha
+                                onEvent(PlayerEvent.OnSetSubtitleBackgroundColor(Color(color).copy(alpha = alphaToUse).toArgb()))
+                            }
+                        }
+                    )
+                }
+            }
+            item {
+                OverlaySectionCard(title = "Container Opacity") {
+                    val currentBg = Color(subtitleStyle.backgroundColor)
+                    val currentBgAlphaPercent = (currentBg.alpha * 100f).roundToInt().coerceIn(0, 100)
+                    StepperRow(
+                        value = "$currentBgAlphaPercent%",
+                        onDecrease = {
+                            val newAlpha = (currentBgAlphaPercent - 10).coerceAtLeast(0) / 100f
+                            val base = if (currentBg == Color.Transparent || currentBg.alpha == 0f) Color.Black else currentBg
+                            onEvent(PlayerEvent.OnSetSubtitleBackgroundColor(base.copy(alpha = newAlpha).toArgb()))
+                        },
+                        onIncrease = {
+                            val newAlpha = (currentBgAlphaPercent + 10).coerceAtMost(100) / 100f
+                            val base = if (currentBg == Color.Transparent || currentBg.alpha == 0f) Color.Black else currentBg
+                            onEvent(PlayerEvent.OnSetSubtitleBackgroundColor(base.copy(alpha = newAlpha).toArgb()))
+                        },
+                        onMoveLeft = onMoveLeft,
+                        decrementFocusRequester = focusRequesters[StyleFocusKey.ContainerOpacityDecrease],
+                        incrementFocusRequester = focusRequesters[StyleFocusKey.ContainerOpacityIncrease],
+                        decrementFocusKey = StyleFocusKey.ContainerOpacityDecrease,
+                        incrementFocusKey = StyleFocusKey.ContainerOpacityIncrease,
+                        onFocusChanged = onStyleFocused
+                    )
+                }
+            }
+            item {
                 OverlaySectionCard(title = stringResource(R.string.subtitle_style_outline)) {
                     Column(verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.md)) {
                         ToggleChip(
@@ -1590,6 +1645,9 @@ private object StyleFocusKey {
     const val TextColorPrefix = "text_color"
     const val OpacityDecrease = "opacity_decrease"
     const val OpacityIncrease = "opacity_increase"
+    const val ContainerColorPrefix = "container_color"
+    const val ContainerOpacityDecrease = "container_opacity_decrease"
+    const val ContainerOpacityIncrease = "container_opacity_increase"
     const val OutlineColorPrefix = "outline_color"
 }
 
@@ -1606,9 +1664,11 @@ private fun styleListIndexForFocusKey(focusKey: String): Int {
         focusKey == StyleFocusKey.Bold -> 2
         focusKey.startsWith("${StyleFocusKey.TextColorPrefix}:") -> 3
         focusKey == StyleFocusKey.OpacityDecrease || focusKey == StyleFocusKey.OpacityIncrease -> 4
-        focusKey == StyleFocusKey.OutlineToggle || focusKey.startsWith("${StyleFocusKey.OutlineColorPrefix}:") -> 5
-        focusKey == StyleFocusKey.OffsetDecrease || focusKey == StyleFocusKey.OffsetIncrease -> 6
-        focusKey == StyleFocusKey.Reset -> 7
+        focusKey.startsWith("${StyleFocusKey.ContainerColorPrefix}:") -> 5
+        focusKey == StyleFocusKey.ContainerOpacityDecrease || focusKey == StyleFocusKey.ContainerOpacityIncrease -> 6
+        focusKey == StyleFocusKey.OutlineToggle || focusKey.startsWith("${StyleFocusKey.OutlineColorPrefix}:") -> 7
+        focusKey == StyleFocusKey.OffsetDecrease || focusKey == StyleFocusKey.OffsetIncrease -> 8
+        focusKey == StyleFocusKey.Reset -> 9
         else -> 0
     }
 }
@@ -1627,6 +1687,8 @@ private fun rememberStyleFocusRequesters(): Map<String, FocusRequester> {
             StyleFocusKey.Bold,
             StyleFocusKey.OpacityDecrease,
             StyleFocusKey.OpacityIncrease,
+            StyleFocusKey.ContainerOpacityDecrease,
+            StyleFocusKey.ContainerOpacityIncrease,
             StyleFocusKey.OutlineToggle,
             StyleFocusKey.OffsetDecrease,
             StyleFocusKey.OffsetIncrease,
@@ -1635,6 +1697,9 @@ private fun rememberStyleFocusRequesters(): Map<String, FocusRequester> {
         ).associateWith { FocusRequester() } +
             OverlayTextColors.associate { color ->
                 "${StyleFocusKey.TextColorPrefix}:${color.toArgb()}" to FocusRequester()
+            } +
+            OverlayContainerColors.associate { color ->
+                "${StyleFocusKey.ContainerColorPrefix}:${color.toArgb()}" to FocusRequester()
             } +
             OverlayOutlineColors.associate { color ->
                 "${StyleFocusKey.OutlineColorPrefix}:${color.toArgb()}" to FocusRequester()
