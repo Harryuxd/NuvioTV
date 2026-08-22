@@ -106,15 +106,9 @@ class LiveTvViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val guideSchedules: StateFlow<Map<String, List<IptvEpgProgram>>> = combine(channels, _guideWindowStart) { visibleChannels, start ->
-        visibleChannels to start
-    }.flatMapLatest { (visibleChannels, start) ->
-        flow {
-            val end = start + guideWindowDurationMs
-            emit(visibleChannels.associate { channel ->
-                channel.id to epgRepository.getScheduleForChannel(channel, start, end).first()
-            })
-        }
+    val guideSchedules: StateFlow<Map<String, List<IptvEpgProgram>>> = _guideWindowStart.flatMapLatest { start ->
+        val end = start + guideWindowDurationMs
+        epgRepository.getSchedulesForWindow(start, end)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val selectedChannelEpg: StateFlow<Pair<IptvEpgProgram?, IptvEpgProgram?>> = _selectedChannel.flatMapLatest { channel ->

@@ -123,8 +123,23 @@ internal fun TvGuidePane(
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(channels, key = { it.id }) { channel ->
+                    val channelPrograms = remember(channel.id, schedules) {
+                        val tvgIdLower = channel.tvgId?.trim()?.lowercase()
+                        val tvgBase = tvgIdLower?.substringBeforeLast('.')
+                        val tvgNameLower = channel.tvgName?.trim()?.lowercase()
+                        val nameLower = channel.name.trim().lowercase()
+                        val normName = com.nuvio.tv.data.iptv.epg.XmltvParser.normalize(channel.name)
+
+                        schedules[tvgIdLower]
+                            ?: (if (tvgBase != null) schedules[tvgBase] else null)
+                            ?: (if (tvgNameLower != null) schedules[tvgNameLower] else null)
+                            ?: schedules[nameLower]
+                            ?: schedules[normName]
+                            ?: schedules[channel.id]
+                            ?: emptyList()
+                    }
                     GuideRow(
-                        channel = channel, programs = schedules[channel.id].orEmpty(), windowStart = windowStart,
+                        channel = channel, programs = channelPrograms, windowStart = windowStart,
                         guideWidth = guideWidth, now = now, selected = selectedChannel?.id == channel.id,
                         onChannel = { onSelectChannel(channel) },
                         onProgram = { program -> focusedProgram = program; onSelectChannel(channel) },

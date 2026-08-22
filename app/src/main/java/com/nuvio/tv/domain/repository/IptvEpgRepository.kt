@@ -11,6 +11,7 @@ interface IptvEpgRepository {
     fun getCurrentAndNextProgram(channel: IptvChannel): Flow<Pair<IptvEpgProgram?, IptvEpgProgram?>>
     fun getScheduleForChannel(tvgId: String, windowStartEpochMs: Long, windowEndEpochMs: Long): Flow<List<IptvEpgProgram>>
     fun getScheduleForChannel(channel: IptvChannel, windowStartEpochMs: Long, windowEndEpochMs: Long): Flow<List<IptvEpgProgram>>
+    fun getSchedulesForWindow(windowStartEpochMs: Long, windowEndEpochMs: Long): Flow<Map<String, List<IptvEpgProgram>>>
     suspend fun clearEpgForPlaylist(playlistId: String)
     fun getSources(): Flow<List<IptvEpgSource>>
     suspend fun saveManualSource(source: IptvEpgSource): Result<IptvEpgSource>

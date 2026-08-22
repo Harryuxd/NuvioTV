@@ -12,6 +12,7 @@ import com.nuvio.tv.domain.repository.IptvEpgRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.sync.Mutex
@@ -137,6 +138,17 @@ class IptvEpgRepositoryImpl @Inject constructor(
             .onStart { emit(Unit) }
             .map {
                 dbHelper.getSchedule(keys, windowStartEpochMs, windowEndEpochMs)
+            }
+    }
+
+    override fun getSchedulesForWindow(
+        windowStartEpochMs: Long,
+        windowEndEpochMs: Long
+    ): Flow<Map<String, List<IptvEpgProgram>>> {
+        return dbHelper.dbUpdates
+            .onStart { emit(Unit) }
+            .map {
+                dbHelper.getSchedulesForWindow(windowStartEpochMs, windowEndEpochMs)
             }
     }
 
