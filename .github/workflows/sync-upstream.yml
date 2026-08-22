@@ -1,0 +1,24 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # Daily at 06:00 UTC
+  workflow_dispatch:    # Allows manual trigger button in GitHub Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Sync Fork with Upstream
+    runs-on: ubuntu-latest
+    if: github.repository == 'Harryuxd/NuvioTV'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Sync dev branch
+        run: |
+          gh repo sync Harryuxd/NuvioTV -b dev
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
