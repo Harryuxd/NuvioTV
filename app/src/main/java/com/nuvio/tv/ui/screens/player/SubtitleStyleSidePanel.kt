@@ -61,6 +61,14 @@ private val PANEL_TEXT_COLORS = listOf(
     Color(0xFF00FF88)
 )
 
+private val PANEL_CONTAINER_COLORS = listOf(
+    Color.Black,
+    Color(0xFF1A1A1A),
+    Color(0xFF1E293B),
+    Color(0xFF0F172A),
+    Color.Transparent
+)
+
 private val PANEL_OUTLINE_COLORS = listOf(
     Color.Black,
     Color.White,
@@ -69,9 +77,9 @@ private val PANEL_OUTLINE_COLORS = listOf(
 )
 
 private val StyleCardWidth = 220.dp
-private val StyleCardHeight = 102.dp
+private val StyleCardHeight = 110.dp
 private val StyleCardGap = NuvioTheme.spacing.md
-private val StyleGridWidth = (StyleCardWidth * 3) + (StyleCardGap * 2)
+private val StyleGridWidth = (StyleCardWidth * 4) + (StyleCardGap * 3)
 
 @Composable
 internal fun SubtitleStyleSidePanel(
@@ -91,11 +99,11 @@ internal fun SubtitleStyleSidePanel(
 
     Column(
         modifier = modifier
-            .width(760.dp)
-            .height(330.dp)
+            .width(960.dp)
+            .height(340.dp)
             .clip(RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp))
             .background(Color(0xFF101010))
-            .padding(start = NuvioTheme.spacing.lg, end = NuvioTheme.spacing.lg, top = 22.dp, bottom = 10.dp)
+            .padding(start = NuvioTheme.spacing.lg, end = NuvioTheme.spacing.lg, top = 20.dp, bottom = 10.dp)
     ) {
         Box(
             modifier = Modifier.fillMaxWidth(),
@@ -121,6 +129,7 @@ internal fun SubtitleStyleSidePanel(
             horizontalArrangement = Arrangement.spacedBy(StyleCardGap, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.Top
         ) {
+            // Column 1: Size & Bold
             Column(verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm)) {
                 SubtitleStyleSection(
                     title = stringResource(R.string.subtitle_style_font_size),
@@ -156,20 +165,21 @@ internal fun SubtitleStyleSidePanel(
                 }
             }
 
+            // Column 2: Text Color & Opacity
             Column(verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm)) {
                 SubtitleStyleSection(
                     title = stringResource(R.string.subtitle_style_text_color),
                     centerContent = false,
                     modifier = Modifier
                         .width(StyleCardWidth)
-                        .height(140.dp)
+                        .height(StyleCardHeight)
                 ) {
                     val currentAlphaPercent = (Color(subtitleStyle.textColor).alpha * 100f).roundToInt().coerceIn(0, 100)
                     Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs)) {
                             PANEL_TEXT_COLORS.forEach { color ->
                                 SubtitleStyleColorChip(
                                     color = color,
@@ -182,7 +192,7 @@ internal fun SubtitleStyleSidePanel(
                             }
                         }
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm),
+                            horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             SubtitleStyleStepperButton(
@@ -203,6 +213,116 @@ internal fun SubtitleStyleSidePanel(
                         }
                     }
                 }
+
+                SubtitleStyleSection(
+                    title = stringResource(R.string.subtitle_style_bottom_offset),
+                    modifier = Modifier
+                        .width(StyleCardWidth)
+                        .height(StyleCardHeight)
+                ) {
+                    SubtitleStyleSettingRow {
+                        SubtitleStyleStepperButton(
+                            icon = Icons.Default.Remove,
+                            onClick = { onEvent(PlayerEvent.OnSetSubtitleVerticalOffset(subtitleStyle.verticalOffset - 5)) }
+                        )
+                        SubtitleStyleValueDisplay(text = subtitleStyle.verticalOffset.toString())
+                        SubtitleStyleStepperButton(
+                            icon = Icons.Default.Add,
+                            onClick = { onEvent(PlayerEvent.OnSetSubtitleVerticalOffset(subtitleStyle.verticalOffset + 5)) }
+                        )
+                    }
+                }
+            }
+
+            // Column 3: Container Fill Color & Container Opacity
+            Column(verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm)) {
+                SubtitleStyleSection(
+                    title = "Container Fill & Opacity",
+                    centerContent = false,
+                    modifier = Modifier
+                        .width(StyleCardWidth)
+                        .height(StyleCardHeight)
+                ) {
+                    val currentBg = Color(subtitleStyle.backgroundColor)
+                    val currentBgAlpha = currentBg.alpha
+                    val currentBgAlphaPercent = (currentBgAlpha * 100f).roundToInt().coerceIn(0, 100)
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs)) {
+                            PANEL_CONTAINER_COLORS.forEach { color ->
+                                val isSelected = if (color == Color.Transparent) {
+                                    currentBg.alpha == 0f
+                                } else {
+                                    currentBg.alpha > 0f && (color.toArgb() and 0x00FFFFFF == currentBg.toArgb() and 0x00FFFFFF)
+                                }
+                                SubtitleStyleColorChip(
+                                    color = if (color == Color.Transparent) Color(0x33FFFFFF) else color,
+                                    isSelected = isSelected,
+                                    onClick = {
+                                        if (color == Color.Transparent) {
+                                            onEvent(PlayerEvent.OnSetSubtitleBackgroundColor(Color.Transparent.toArgb()))
+                                        } else {
+                                            val alphaToUse = if (currentBgAlpha <= 0.05f) 0.8f else currentBgAlpha
+                                            onEvent(PlayerEvent.OnSetSubtitleBackgroundColor(color.copy(alpha = alphaToUse).toArgb()))
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SubtitleStyleStepperButton(
+                                icon = Icons.Default.Remove,
+                                onClick = {
+                                    val newAlpha = (currentBgAlphaPercent - 10).coerceAtLeast(0) / 100f
+                                    val base = if (currentBg == Color.Transparent || currentBg.alpha == 0f) Color.Black else currentBg
+                                    onEvent(PlayerEvent.OnSetSubtitleBackgroundColor(base.copy(alpha = newAlpha).toArgb()))
+                                }
+                            )
+                            SubtitleStyleValueDisplay(text = "$currentBgAlphaPercent%")
+                            SubtitleStyleStepperButton(
+                                icon = Icons.Default.Add,
+                                onClick = {
+                                    val newAlpha = (currentBgAlphaPercent + 10).coerceAtMost(100) / 100f
+                                    val base = if (currentBg == Color.Transparent || currentBg.alpha == 0f) Color.Black else currentBg
+                                    onEvent(PlayerEvent.OnSetSubtitleBackgroundColor(base.copy(alpha = newAlpha).toArgb()))
+                                }
+                            )
+                        }
+                    }
+                }
+
+                SubtitleStyleSection(
+                    title = stringResource(R.string.subtitle_style_defaults),
+                    modifier = Modifier
+                        .width(StyleCardWidth)
+                        .height(StyleCardHeight)
+                ) {
+                    Card(
+                        onClick = { onEvent(PlayerEvent.OnResetSubtitleDefaults) },
+                        colors = CardDefaults.colors(
+                            containerColor = Color.White.copy(alpha = 0.1f),
+                            focusedContainerColor = Color.White.copy(alpha = 0.2f)
+                        ),
+                        shape = CardDefaults.shape(RoundedCornerShape(NuvioTheme.radii.md))
+                    ) {
+                        Text(
+                            text = stringResource(R.string.subtitle_style_reset),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White.copy(alpha = 0.8f),
+                            modifier = Modifier.padding(horizontal = NuvioTheme.spacing.lg, vertical = 10.dp)
+                        )
+                    }
+                }
+            }
+
+            // Column 4: Outline
+            Column(verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm)) {
                 SubtitleStyleSection(
                     title = stringResource(R.string.subtitle_style_outline),
                     centerContent = false,
@@ -242,49 +362,6 @@ internal fun SubtitleStyleSidePanel(
                     }
                 }
             }
-
-            Column(verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm)) {
-                SubtitleStyleSection(
-                    title = stringResource(R.string.subtitle_style_bottom_offset),
-                    modifier = Modifier
-                        .width(StyleCardWidth)
-                        .height(StyleCardHeight)
-                ) {
-                    SubtitleStyleSettingRow {
-                        SubtitleStyleStepperButton(
-                            icon = Icons.Default.Remove,
-                            onClick = { onEvent(PlayerEvent.OnSetSubtitleVerticalOffset(subtitleStyle.verticalOffset - 5)) }
-                        )
-                        SubtitleStyleValueDisplay(text = subtitleStyle.verticalOffset.toString())
-                        SubtitleStyleStepperButton(
-                            icon = Icons.Default.Add,
-                            onClick = { onEvent(PlayerEvent.OnSetSubtitleVerticalOffset(subtitleStyle.verticalOffset + 5)) }
-                        )
-                    }
-                }
-                SubtitleStyleSection(
-                    title = stringResource(R.string.subtitle_style_defaults),
-                    modifier = Modifier
-                        .width(StyleCardWidth)
-                        .height(StyleCardHeight)
-                ) {
-                    Card(
-                        onClick = { onEvent(PlayerEvent.OnResetSubtitleDefaults) },
-                        colors = CardDefaults.colors(
-                            containerColor = Color.White.copy(alpha = 0.1f),
-                            focusedContainerColor = Color.White.copy(alpha = 0.2f)
-                        ),
-                        shape = CardDefaults.shape(RoundedCornerShape(NuvioTheme.radii.md))
-                    ) {
-                        Text(
-                            text = stringResource(R.string.subtitle_style_reset),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.8f),
-                            modifier = Modifier.padding(horizontal = NuvioTheme.spacing.lg, vertical = 10.dp)
-                        )
-                    }
-                }
-            }
         }
     }
 }
@@ -320,9 +397,9 @@ private fun SubtitleStyleSection(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(if (centerContent) Alignment.CenterStart else Alignment.TopStart)
-                .padding(top = 14.dp),
-            contentAlignment = if (centerContent) Alignment.CenterStart else Alignment.TopStart
+                .padding(top = 22.dp)
+                .then(if (centerContent) Modifier.align(Alignment.Center) else Modifier.align(Alignment.TopStart)),
+            contentAlignment = if (centerContent) Alignment.Center else Alignment.TopStart
         ) {
             content()
         }
@@ -334,21 +411,19 @@ private fun SubtitleStyleSettingRow(
     label: String? = null,
     content: @Composable () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        if (!label.isNullOrBlank()) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        if (label != null) {
             Text(
                 text = label,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.White,
-                modifier = Modifier.padding(bottom = 6.dp)
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.7f),
+                modifier = Modifier.padding(end = 4.dp)
             )
         }
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.sm),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            content()
-        }
+        content()
     }
 }
 
@@ -358,18 +433,24 @@ private fun SubtitleStyleStepperButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var isFocused by remember { mutableStateOf(false) }
+
     IconButton(
         onClick = onClick,
-        modifier = modifier.size(NuvioTheme.spacing.xxl),
         colors = IconButtonDefaults.colors(
-            containerColor = Color.White.copy(alpha = 0.16f),
-            focusedContainerColor = Color.White.copy(alpha = 0.28f),
-            contentColor = Color.White,
-            focusedContentColor = Color.White
+            containerColor = if (isFocused) NuvioTheme.colors.FocusBackground else Color.White.copy(alpha = 0.1f),
+            focusedContainerColor = NuvioTheme.colors.FocusBackground
         ),
-        shape = IconButtonDefaults.shape(shape = RoundedCornerShape(10.dp))
+        modifier = modifier
+            .size(28.dp)
+            .onFocusChanged { isFocused = it.isFocused }
     ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(NuvioTheme.spacing.lg))
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (isFocused) Color.Black else Color.White,
+            modifier = Modifier.size(14.dp)
+        )
     }
 }
 
@@ -377,19 +458,59 @@ private fun SubtitleStyleStepperButton(
 private fun SubtitleStyleValueDisplay(text: String) {
     Box(
         modifier = Modifier
-            .widthIn(min = 52.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(Color.White.copy(alpha = 0.12f))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .widthIn(min = 40.dp)
+            .height(28.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.White.copy(alpha = 0.08f)),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.labelSmall,
             color = Color.White,
-            maxLines = 1,
-            softWrap = false
+            modifier = Modifier.padding(horizontal = 6.dp)
         )
+    }
+}
+
+@Composable
+private fun SubtitleStyleToggleButton(
+    isEnabled: Boolean,
+    onClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.colors(
+            containerColor = if (isEnabled) {
+                if (isFocused) NuvioTheme.colors.FocusBackground else NuvioTheme.colors.Secondary
+            } else {
+                if (isFocused) NuvioTheme.colors.FocusBackground else Color.White.copy(alpha = 0.1f)
+            },
+            focusedContainerColor = NuvioTheme.colors.FocusBackground
+        ),
+        shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
+        modifier = Modifier
+            .height(28.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (isEnabled) "ON" else "OFF",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isFocused) {
+                    Color.Black
+                } else if (isEnabled) {
+                    NuvioTheme.colors.OnSecondary
+                } else {
+                    Color.White.copy(alpha = 0.6f)
+                }
+            )
+        }
     }
 }
 
@@ -399,53 +520,40 @@ private fun SubtitleStyleColorChip(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val isLight = (color.red + color.green + color.blue) / 3f > 0.5f
     var isFocused by remember { mutableStateOf(false) }
 
-    val borderModifier = when {
-        isFocused -> Modifier.border(NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs), CircleShape)
-        isSelected -> Modifier.border(NuvioTheme.spacing.xxs, Color.White, CircleShape)
-        else -> Modifier
-    }
-
-    IconButton(
-        onClick = onClick,
-        modifier = Modifier
-            .size(30.dp)
-            .then(borderModifier)
-            .onFocusChanged { isFocused = it.isFocused },
-        colors = IconButtonDefaults.colors(
-            containerColor = color,
-            focusedContainerColor = color,
-            contentColor = if (isLight) Color.Black else Color.White,
-            focusedContentColor = if (isLight) Color.Black else Color.White
-        ),
-        shape = IconButtonDefaults.shape(shape = CircleShape)
-    ) {
-        if (isSelected) {
-            Icon(Icons.Default.Check, contentDescription = stringResource(R.string.cd_selected), modifier = Modifier.size(15.dp))
-        }
-    }
-}
-
-@Composable
-private fun SubtitleStyleToggleButton(
-    isEnabled: Boolean,
-    onClick: () -> Unit
-) {
     Card(
         onClick = onClick,
         colors = CardDefaults.colors(
-            containerColor = if (isEnabled) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.08f),
-            focusedContainerColor = Color.White.copy(alpha = 0.28f)
+            containerColor = color,
+            focusedContainerColor = color
         ),
-        shape = CardDefaults.shape(RoundedCornerShape(10.dp))
+        shape = CardDefaults.shape(CircleShape),
+        modifier = Modifier
+            .size(24.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+            .then(
+                if (isFocused) {
+                    Modifier.border(2.dp, Color.White, CircleShape)
+                } else if (isSelected) {
+                    Modifier.border(2.dp, NuvioTheme.colors.Secondary, CircleShape)
+                } else {
+                    Modifier.border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                }
+            )
     ) {
-        Text(
-            text = if (isEnabled) stringResource(R.string.subtitle_style_on) else stringResource(R.string.subtitle_style_off),
-            style = MaterialTheme.typography.bodySmall,
-            color = if (isEnabled) Color.White else Color.White.copy(alpha = 0.55f),
-            modifier = Modifier.padding(horizontal = NuvioTheme.spacing.md, vertical = 6.dp)
-        )
+        if (isSelected) {
+            Box(
+                modifier = Modifier.size(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    tint = if (color == Color.White || color == Color(0xFFD9D9D9) || color == Color(0xFFFFD700)) Color.Black else Color.White,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
     }
 }
