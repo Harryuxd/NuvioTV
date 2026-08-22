@@ -1,12 +1,17 @@
 package com.nuvio.tv.data.iptv.xtream
 
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
+import com.nuvio.tv.BuildConfig
+import com.nuvio.tv.data.iptv.epg.XmltvParser
 import com.nuvio.tv.domain.model.iptv.IptvChannel
 import com.nuvio.tv.domain.model.iptv.IptvGroup
 import com.nuvio.tv.domain.model.iptv.IptvStreamFormat
+import com.nuvio.tv.domain.model.iptv.IptvVodCategory
+import com.nuvio.tv.domain.model.iptv.IptvVodItem
+import com.nuvio.tv.domain.model.iptv.IptvVodType
 import com.nuvio.tv.domain.model.iptv.XtreamCredentials
-import com.nuvio.tv.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -50,8 +55,6 @@ class XtreamClient @Inject constructor(
             val base = credentials.serverUrl.trimEnd('/')
             val auth = authenticate(credentials).getOrThrow()
             val allowedFormats = auth.userInfo?.allowedOutputFormats.orEmpty().map { it.lowercase() }
-            // HLS avoids provider-specific MPEG-TS endpoint restrictions and is natively
-            // supported by Media3. Fall back to TS when the account does not advertise HLS.
             val container = if ("m3u8" in allowedFormats) "m3u8" else "ts"
 
             // 1. Fetch categories
@@ -98,7 +101,6 @@ class XtreamClient @Inject constructor(
                     val groupId = "${playlistId}_xc_$catId"
 
                     val streamUrl = "$base/live/${credentials.username}/${credentials.password}/${item.streamId}.$container"
-
                     val channelNumber = (item.num as? Number)?.toInt() ?: (index + 1)
 
                     channels.add(
@@ -113,8 +115,6 @@ class XtreamClient @Inject constructor(
                             tvgId = item.epgChannelId?.takeIf { it.isNotBlank() },
                             tvgName = item.name,
                             channelNumber = channelNumber,
-                            // Match the authenticated Xtream API request. Several providers reject
-                            // a stream URL when its User-Agent changes after login (often as 458).
                             headers = mapOf("User-Agent" to "Nuvio/${BuildConfig.VERSION_NAME.ifBlank { "dev" }}"),
                             streamFormat = if (container == "m3u8") IptvStreamFormat.HLS else IptvStreamFormat.MPEGTS
                         )
@@ -122,13 +122,216 @@ class XtreamClient @Inject constructor(
                 }
             }
 
-            // Update channel counts
             val counts = channels.groupingBy { it.groupId }.eachCount()
             val finalGroups = groups.map { grp ->
                 grp.copy(channelCount = counts[grp.id] ?: 0)
             }
 
             Pair(finalGroups, channels)
+        }
+    }
+
+    suspend fun fetchVodMovies(
+        playlistId: String,
+        credentials: XtreamCredentials
+    ): Result<Pair<List<IptvVodCategory>, List<IptvVodItem>>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val base = credentials.serverUrl.trimEnd('/')
+
+            // 1. Fetch categories
+            val categoriesUrl = "$base/player_api.php?username=${credentials.username}&password=${credentials.password}&action=get_vod_categories"
+            val categoriesRequest = Request.Builder().url(categoriesUrl).build()
+            val categoriesMap = mutableMapOf<String, String>()
+            val categories = mutableListOf<IptvVodCategory>()
+
+            okHttpClient.newCall(categoriesRequest).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: "[]"
+                    val type = object : TypeToken<List<XtreamCategory>>() {}.type
+                    val catList: List<XtreamCategory>? = runCatching { gson.fromJson<List<XtreamCategory>>(body, type) }.getOrNull()
+                    catList?.forEach { cat ->
+                        categoriesMap[cat.categoryId] = cat.categoryName
+                        categories.add(
+                            IptvVodCategory(
+                                id = "${playlistId}_vod_cat_${cat.categoryId}",
+                                playlistId = playlistId,
+                                name = cat.categoryName,
+                                type = IptvVodType.MOVIE
+                            )
+                        )
+                    }
+                }
+            }
+
+            // 2. Fetch VOD streams
+            val vodUrl = "$base/player_api.php?username=${credentials.username}&password=${credentials.password}&action=get_vod_streams"
+            val vodRequest = Request.Builder().url(vodUrl).build()
+            val items = mutableListOf<IptvVodItem>()
+
+            okHttpClient.newCall(vodRequest).execute().use { resp ->
+                if (!resp.isSuccessful) throw IOException("Failed to fetch VOD streams: HTTP ${resp.code}")
+                val body = resp.body?.string() ?: "[]"
+                val type = object : TypeToken<List<XtreamVodItem>>() {}.type
+                val vodList: List<XtreamVodItem> = runCatching { gson.fromJson<List<XtreamVodItem>>(body, type) }.getOrNull() ?: emptyList()
+
+                vodList.forEach { item ->
+                    val catId = item.categoryId ?: "0"
+                    val catName = categoriesMap[catId] ?: "Movies"
+                    val ext = item.containerExtension?.takeIf { it.isNotBlank() } ?: "mp4"
+                    val streamUrl = "$base/movie/${credentials.username}/${credentials.password}/${item.streamId}.$ext"
+
+                    val (cleanTitle, year) = parseTitleAndYear(item.name)
+                    val normTitle = XmltvParser.normalize(cleanTitle)
+
+                    items.add(
+                        IptvVodItem(
+                            id = "${playlistId}_vod_${item.streamId}",
+                            playlistId = playlistId,
+                            title = item.name,
+                            normalizedTitle = normTitle,
+                            year = year,
+                            type = IptvVodType.MOVIE,
+                            categoryId = "${playlistId}_vod_cat_$catId",
+                            categoryName = catName,
+                            streamUrl = streamUrl,
+                            containerExtension = ext,
+                            posterUrl = item.streamIcon?.takeIf { it.isNotBlank() },
+                            rating = (item.rating as? Number)?.toDouble() ?: (item.rating5Based as? Number)?.toDouble()?.times(2),
+                            headers = mapOf("User-Agent" to "Nuvio/${BuildConfig.VERSION_NAME.ifBlank { "dev" }}")
+                        )
+                    )
+                }
+            }
+
+            val counts = items.groupingBy { it.categoryId }.eachCount()
+            val finalCategories = categories.map { it.copy(itemCount = counts[it.id] ?: 0) }
+
+            Pair(finalCategories, items)
+        }
+    }
+
+    suspend fun fetchSeries(
+        playlistId: String,
+        credentials: XtreamCredentials
+    ): Result<Pair<List<IptvVodCategory>, List<IptvVodItem>>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val base = credentials.serverUrl.trimEnd('/')
+
+            // 1. Series categories
+            val categoriesUrl = "$base/player_api.php?username=${credentials.username}&password=${credentials.password}&action=get_series_categories"
+            val categoriesRequest = Request.Builder().url(categoriesUrl).build()
+            val categoriesMap = mutableMapOf<String, String>()
+            val categories = mutableListOf<IptvVodCategory>()
+
+            okHttpClient.newCall(categoriesRequest).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: "[]"
+                    val type = object : TypeToken<List<XtreamCategory>>() {}.type
+                    val catList: List<XtreamCategory>? = runCatching { gson.fromJson<List<XtreamCategory>>(body, type) }.getOrNull()
+                    catList?.forEach { cat ->
+                        categoriesMap[cat.categoryId] = cat.categoryName
+                        categories.add(
+                            IptvVodCategory(
+                                id = "${playlistId}_series_cat_${cat.categoryId}",
+                                playlistId = playlistId,
+                                name = cat.categoryName,
+                                type = IptvVodType.SERIES_EPISODE
+                            )
+                        )
+                    }
+                }
+            }
+
+            // 2. Series list
+            val seriesUrl = "$base/player_api.php?username=${credentials.username}&password=${credentials.password}&action=get_series"
+            val seriesRequest = Request.Builder().url(seriesUrl).build()
+            val items = mutableListOf<IptvVodItem>()
+
+            okHttpClient.newCall(seriesRequest).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: "[]"
+                    val type = object : TypeToken<List<XtreamSeriesItem>>() {}.type
+                    val seriesList: List<XtreamSeriesItem> = runCatching { gson.fromJson<List<XtreamSeriesItem>>(body, type) }.getOrNull() ?: emptyList()
+
+                    seriesList.forEach { s ->
+                        val catId = s.categoryId ?: "0"
+                        val catName = categoriesMap[catId] ?: "Series"
+                        val (cleanTitle, year) = parseTitleAndYear(s.name)
+                        val normTitle = XmltvParser.normalize(cleanTitle)
+
+                        items.add(
+                            IptvVodItem(
+                                id = "${playlistId}_series_${s.seriesId}",
+                                playlistId = playlistId,
+                                title = s.name,
+                                normalizedTitle = normTitle,
+                                year = year,
+                                type = IptvVodType.SERIES_EPISODE,
+                                categoryId = "${playlistId}_series_cat_$catId",
+                                categoryName = catName,
+                                seriesId = s.seriesId.toString(),
+                                seriesName = s.name,
+                                streamUrl = "$base/series/${credentials.username}/${credentials.password}/${s.seriesId}",
+                                posterUrl = s.cover?.takeIf { it.isNotBlank() },
+                                rating = (s.rating as? Number)?.toDouble() ?: (s.rating5Based as? Number)?.toDouble()?.times(2),
+                                genre = s.genre,
+                                releaseDate = s.releaseDate,
+                                plot = s.plot,
+                                headers = mapOf("User-Agent" to "Nuvio/${BuildConfig.VERSION_NAME.ifBlank { "dev" }}")
+                            )
+                        )
+                    }
+                }
+            }
+
+            val counts = items.groupingBy { it.categoryId }.eachCount()
+            val finalCategories = categories.map { it.copy(itemCount = counts[it.id] ?: 0) }
+
+            Pair(finalCategories, items)
+        }
+    }
+
+    suspend fun getSeriesInfo(
+        credentials: XtreamCredentials,
+        seriesId: String
+    ): Result<Map<String, List<XtreamEpisodeItem>>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val base = credentials.serverUrl.trimEnd('/')
+            val url = "$base/player_api.php?username=${credentials.username}&password=${credentials.password}&action=get_series_info&series_id=$seriesId"
+            val request = Request.Builder().url(url).build()
+
+            okHttpClient.newCall(request).execute().use { resp ->
+                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                val body = resp.body?.string() ?: throw IOException("Empty series info")
+                val json = JsonParser.parseString(body).asJsonObject
+                val episodesObj = json.getAsJsonObject("episodes")
+                val map = mutableMapOf<String, List<XtreamEpisodeItem>>()
+                if (episodesObj != null) {
+                    val epType = object : TypeToken<List<XtreamEpisodeItem>>() {}.type
+                    for (entry in episodesObj.entrySet()) {
+                        val seasonKey = entry.key
+                        val epList: List<XtreamEpisodeItem> = runCatching {
+                            gson.fromJson<List<XtreamEpisodeItem>>(entry.value, epType)
+                        }.getOrNull() ?: emptyList()
+                        map[seasonKey] = epList
+                    }
+                }
+                map
+            }
+        }
+    }
+
+    companion object {
+        fun parseTitleAndYear(raw: String): Pair<String, Int?> {
+            val yearRegex = Regex("""[\(\[\s](\d{4})[\)\]\s]?.*$""")
+            val match = yearRegex.find(raw)
+            val year = match?.groupValues?.getOrNull(1)?.toIntOrNull()
+            val cleanTitle = if (match != null) {
+                raw.substring(0, match.range.first).trim()
+            } else {
+                raw.trim()
+            }
+            return Pair(cleanTitle.ifBlank { raw.trim() }, year)
         }
     }
 }

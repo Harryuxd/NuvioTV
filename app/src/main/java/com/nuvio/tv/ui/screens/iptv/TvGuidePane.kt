@@ -176,23 +176,27 @@ internal fun TvGuidePane(
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable private fun GuideRow(channel: IptvChannel, programs: List<IptvEpgProgram>, windowStart: Long, guideWidth: androidx.compose.ui.unit.Dp, now: Long, selected: Boolean, onChannel: () -> Unit, onProgram: (IptvEpgProgram) -> Unit, onPlay: () -> Unit) {
-    Row(Modifier.fillMaxWidth().height(76.dp)) {
-        Card(onClick = { onChannel(); onPlay() }, modifier = Modifier.width(220.dp).fillMaxHeight(), shape = CardDefaults.shape(RoundedCornerShape(NuvioTheme.radii.md)), colors = CardDefaults.colors(containerColor = if (selected) NuvioTheme.colors.BackgroundElevated else NuvioTheme.colors.BackgroundCard), border = CardDefaults.border(focusedBorder = Border(border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs), shape = RoundedCornerShape(NuvioTheme.radii.md)))) {
-            Row(Modifier.fillMaxSize().padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(channel.channelNumber?.toString() ?: "•", modifier = Modifier.width(28.dp), color = NuvioTheme.colors.TextTertiary, style = MaterialTheme.typography.labelMedium)
-                IptvChannelLogo(channel.name, channel.logoUrl, Modifier.size(38.dp))
-                Spacer(Modifier.width(9.dp)); Text(channel.name, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium), color = NuvioTheme.colors.TextPrimary)
+    Row(Modifier.fillMaxWidth().height(52.dp)) {
+        Card(onClick = { onChannel(); onPlay() }, modifier = Modifier.width(200.dp).fillMaxHeight(), shape = CardDefaults.shape(RoundedCornerShape(NuvioTheme.radii.sm)), colors = CardDefaults.colors(containerColor = if (selected) NuvioTheme.colors.BackgroundElevated else NuvioTheme.colors.BackgroundCard), border = CardDefaults.border(focusedBorder = Border(border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs), shape = RoundedCornerShape(NuvioTheme.radii.sm)))) {
+            Row(Modifier.fillMaxSize().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(channel.channelNumber?.toString() ?: "•", modifier = Modifier.width(22.dp), color = NuvioTheme.colors.TextTertiary, style = MaterialTheme.typography.labelSmall)
+                IptvChannelLogo(channel.name, channel.logoUrl, Modifier.size(26.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(channel.name, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall.copy(fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium), color = NuvioTheme.colors.TextPrimary)
             }
         }
-        Box(Modifier.width(guideWidth).fillMaxHeight().clip(RoundedCornerShape(NuvioTheme.radii.md)).background(NuvioTheme.colors.BackgroundCard.copy(alpha = .5f))) {
-            if (programs.isEmpty()) Text("No guide data", modifier = Modifier.padding(14.dp), color = NuvioTheme.colors.TextTertiary, style = MaterialTheme.typography.bodySmall)
+        Box(Modifier.width(guideWidth).fillMaxHeight().clip(RoundedCornerShape(NuvioTheme.radii.sm)).background(NuvioTheme.colors.BackgroundCard.copy(alpha = .5f))) {
+            if (programs.isEmpty()) Text("No guide data", modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp), color = NuvioTheme.colors.TextTertiary, style = MaterialTheme.typography.bodySmall)
             programs.forEach { program ->
                 val offsetMinutes = ((program.startEpochMs - windowStart) / 60_000L).coerceAtLeast(0).toInt()
                 val visibleEnd = minOf(program.endEpochMs, windowStart + GUIDE_MINUTES * 60_000L)
                 val visibleStart = maxOf(program.startEpochMs, windowStart)
                 val durationMinutes = ((visibleEnd - visibleStart) / 60_000L).coerceAtLeast(15).toInt()
-                Card(onClick = { onProgram(program) }, modifier = Modifier.offset(x = (offsetMinutes * PIXELS_PER_MINUTE).dp).width((durationMinutes * PIXELS_PER_MINUTE).dp).fillMaxHeight().padding(horizontal = 2.dp), shape = CardDefaults.shape(RoundedCornerShape(NuvioTheme.radii.sm)), colors = CardDefaults.colors(containerColor = if (now in program.startEpochMs..program.endEpochMs) NuvioTheme.colors.Secondary.copy(alpha = .22f) else NuvioTheme.colors.BackgroundElevated), border = CardDefaults.border(focusedBorder = Border(border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs), shape = RoundedCornerShape(NuvioTheme.radii.sm)))) {
-                    Column(Modifier.padding(10.dp)) { Text(program.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold), color = NuvioTheme.colors.TextPrimary); Text(SimpleDateFormat("h:mm", Locale.getDefault()).format(Date(program.startEpochMs)), style = MaterialTheme.typography.labelSmall, color = NuvioTheme.colors.TextSecondary) }
+                Card(onClick = { onProgram(program) }, modifier = Modifier.offset(x = (offsetMinutes * PIXELS_PER_MINUTE).dp).width((durationMinutes * PIXELS_PER_MINUTE).dp).fillMaxHeight().padding(horizontal = 1.5.dp), shape = CardDefaults.shape(RoundedCornerShape(NuvioTheme.radii.xs)), colors = CardDefaults.colors(containerColor = if (now in program.startEpochMs..program.endEpochMs) NuvioTheme.colors.Secondary.copy(alpha = .22f) else NuvioTheme.colors.BackgroundElevated), border = CardDefaults.border(focusedBorder = Border(border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs), shape = RoundedCornerShape(NuvioTheme.radii.xs)))) {
+                    Column(Modifier.padding(horizontal = 6.dp, vertical = 4.dp), verticalArrangement = Arrangement.Center) {
+                        Text(program.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold), color = NuvioTheme.colors.TextPrimary)
+                        Text(SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(program.startEpochMs)), style = MaterialTheme.typography.labelSmall, color = NuvioTheme.colors.TextSecondary)
+                    }
                 }
             }
             val marker = ((now - windowStart).toFloat() / (GUIDE_MINUTES * 60_000f)).coerceIn(0f, 1f)

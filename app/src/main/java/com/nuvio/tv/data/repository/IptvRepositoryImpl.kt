@@ -158,6 +158,21 @@ class IptvRepositoryImpl @Inject constructor(
                 epgRepository.refreshSource(epgSource)
             }
 
+            // Sync VOD (Movies & Series) for Xtream accounts
+            if (playlist.type == IptvPlaylistType.XTREAM) {
+                val creds = credentialStore.getCredentials(playlistId)
+                if (creds != null) {
+                    try {
+                        val (_, movies) = xtreamClient.fetchVodMovies(playlistId, creds).getOrDefault(Pair(emptyList(), emptyList()))
+                        val (_, series) = xtreamClient.fetchSeries(playlistId, creds).getOrDefault(Pair(emptyList(), emptyList()))
+                        val allVod = movies + series
+                        if (allVod.isNotEmpty()) {
+                            dbHelper.replaceVodItems(playlistId, allVod)
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+
             channels.size
         }
     }

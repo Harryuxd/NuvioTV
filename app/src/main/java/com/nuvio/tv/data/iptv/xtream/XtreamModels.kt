@@ -52,3 +52,46 @@ data class XtreamStreamItem(
     @SerializedName("custom_sid") @Json(name = "custom_sid") val customSid: String? = null,
     @SerializedName("direct_source") @Json(name = "direct_source") val directSource: String? = null
 )
+
+@JsonClass(generateAdapter = true)
+data class XtreamVodItem(
+    @SerializedName("num") @Json(name = "num") val num: Any? = null,
+    @SerializedName("name") @Json(name = "name") val name: String,
+    @SerializedName("stream_type") @Json(name = "stream_type") val streamType: String? = null,
+    @SerializedName("stream_id") @Json(name = "stream_id") val streamId: Int,
+    @SerializedName("stream_icon") @Json(name = "stream_icon") val streamIcon: String? = null,
+    @SerializedName("rating") @Json(name = "rating") val rating: Any? = null,
+    @SerializedName("rating_5based") @Json(name = "rating_5based") val rating5Based: Any? = null,
+    @SerializedName("added") @Json(name = "added") val added: String? = null,
+    @SerializedName("category_id") @Json(name = "category_id") val categoryId: String? = null,
+    @SerializedName("container_extension") @Json(name = "container_extension") val containerExtension: String? = null,
+    @SerializedName("custom_sid") @Json(name = "custom_sid") val customSid: String? = null,
+    @SerializedName("direct_source") @Json(name = "direct_source") val directSource: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class XtreamSeriesItem(
+    @SerializedName("num") @Json(name = "num") val num: Any? = null,
+    @SerializedName("name") @Json(name = "name") val name: String,
+    @SerializedName("series_id") @Json(name = "series_id") val seriesId: Int,
+    @SerializedName("cover") @Json(name = "cover") val cover: String? = null,
+    @SerializedName("plot") @Json(name = "plot") val plot: String? = null,
+    @SerializedName("cast") @Json(name = "cast") val cast: String? = null,
+    @SerializedName("director") @Json(name = "director") val director: String? = null,
+    @SerializedName("genre") @Json(name = "genre") val genre: String? = null,
+    @SerializedName("releaseDate") @Json(name = "releaseDate") val releaseDate: String? = null,
+    @SerializedName("rating") @Json(name = "rating") val rating: Any? = null,
+    @SerializedName("rating_5based") @Json(name = "rating_5based") val rating5Based: Any? = null,
+    @SerializedName("episode_run_time") @Json(name = "episode_run_time") val episodeRunTime: Any? = null,
+    @SerializedName("category_id") @Json(name = "category_id") val categoryId: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class XtreamEpisodeItem(
+    @SerializedName("id") @Json(name = "id") val id: String,
+    @SerializedName("episode_num") @Json(name = "episode_num") val episodeNum: Any? = null,
+    @SerializedName("title") @Json(name = "title") val title: String? = null,
+    @SerializedName("container_extension") @Json(name = "container_extension") val containerExtension: String? = null,
+    @SerializedName("season") @Json(name = "season") val season: Any? = null,
+    @SerializedName("rating") @Json(name = "rating") val rating: Any? = null
+)

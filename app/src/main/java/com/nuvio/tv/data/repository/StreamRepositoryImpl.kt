@@ -53,7 +53,8 @@ class StreamRepositoryImpl @Inject constructor(
     private val debridSettingsDataStore: DebridSettingsDataStore,
     private val tmdbService: TmdbService,
     private val debridStreamPresentation: DebridStreamPresentation,
-    private val localDebridAvailabilityService: LocalDebridAvailabilityService
+    private val localDebridAvailabilityService: LocalDebridAvailabilityService,
+    private val iptvVodStreamResolver: com.nuvio.tv.data.iptv.vod.IptvVodStreamResolver
 ) : StreamRepository {
     private val streamSearchSessions = StreamSearchSessionCache()
     private val localPluginSearchPaused = MutableStateFlow(false)
@@ -182,8 +183,8 @@ class StreamRepositoryImpl @Inject constructor(
                 // Channel to receive results as they complete
                 val resultChannel = Channel<AddonStreams>(Channel.UNLIMITED)
                 
-                // Track number of pending jobs
-                val totalJobs = streamAddons.size + 1
+                // Track number of pending jobs (addons + plugins + IPTV VOD)
+                val totalJobs = streamAddons.size + 2
                 val completedJobs = java.util.concurrent.atomic.AtomicInteger(0)
 
                 // Launch addon jobs
@@ -240,6 +241,28 @@ class StreamRepositoryImpl @Inject constructor(
                             if (completedJobs.incrementAndGet() >= totalJobs) {
                                 resultChannel.close()
                             }
+                        }
+                    }
+                }
+
+                // Launch IPTV VOD job
+                launch {
+                    try {
+                        val iptvResult = iptvVodStreamResolver.resolveVodStreams(
+                            type = type,
+                            videoId = videoId,
+                            season = season,
+                            episode = episode
+                        )
+                        if (iptvResult != null && iptvResult.streams.isNotEmpty()) {
+                            resultChannel.send(iptvResult)
+                        }
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        Log.e(TAG, "IPTV VOD stream resolve failed: ${e.message}")
+                    } finally {
+                        if (completedJobs.incrementAndGet() >= totalJobs) {
+                            resultChannel.close()
                         }
                     }
                 }

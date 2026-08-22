@@ -12,6 +12,9 @@ import com.nuvio.tv.domain.repository.CatalogRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import com.nuvio.tv.domain.model.MetaPreview
+import com.nuvio.tv.domain.model.PosterShape
+import com.nuvio.tv.domain.model.iptv.IptvVodType
 import java.net.URLEncoder
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,7 +22,8 @@ import javax.inject.Singleton
 @Singleton
 class CatalogRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val api: AddonApi
+    private val api: AddonApi,
+    private val dbHelper: com.nuvio.tv.data.local.iptv.db.IptvDatabaseHelper
 ) : CatalogRepository {
     companion object {
         private const val TAG = "CatalogRepository"
@@ -38,6 +42,54 @@ class CatalogRepositoryImpl @Inject constructor(
         supportsSkip: Boolean
     ): Flow<NetworkResult<CatalogRow>> = flow {
         emit(NetworkResult.Loading)
+
+        if (addonBaseUrl.startsWith("iptv://") || addonId == "iptv-vod") {
+            val vodType = if (type.equals("series", ignoreCase = true)) IptvVodType.SERIES_EPISODE else IptvVodType.MOVIE
+            val vodItems = dbHelper.getVodItems(
+                playlistId = null,
+                type = vodType,
+                categoryId = if (catalogId.startsWith("cat_")) catalogId.substringAfter("cat_") else null,
+                limit = skipStep.coerceAtLeast(20),
+                offset = skip
+            )
+            val metaPreviews = vodItems.map { vod ->
+                MetaPreview(
+                    id = "iptv_${vod.id}",
+                    type = ContentType.fromString(type),
+                    rawType = type,
+                    name = vod.title,
+                    poster = vod.posterUrl,
+                    posterShape = PosterShape.POSTER,
+                    background = null,
+                    logo = null,
+                    description = vod.plot ?: vod.categoryName,
+                    releaseInfo = vod.year?.toString() ?: vod.releaseDate,
+                    imdbRating = vod.rating?.toFloat(),
+                    genres = listOfNotNull(vod.genre ?: vod.categoryName),
+                    sourceAddonBaseUrl = "iptv://vod"
+                )
+            }
+
+            val row = CatalogRow(
+                addonId = addonId,
+                addonName = addonName,
+                addonBaseUrl = addonBaseUrl,
+                catalogId = catalogId,
+                catalogName = catalogName,
+                type = ContentType.fromString(type),
+                rawType = type,
+                items = metaPreviews,
+                isLoading = false,
+                hasMore = vodItems.size >= skipStep.coerceAtLeast(20),
+                currentPage = if (skipStep > 0) skip / skipStep else 0,
+                supportsSkip = true,
+                skipStep = skipStep.coerceAtLeast(20),
+                nextSkip = skip + vodItems.size,
+                extraArgs = extraArgs
+            )
+            emit(NetworkResult.Success(row))
+            return@flow
+        }
 
         val url = buildCatalogUrl(addonBaseUrl, type, catalogId, skip, extraArgs)
         Log.d(
