@@ -97,7 +97,6 @@ fun LiveTvScreen(
     val isInitialLoading by viewModel.isInitialLoading.collectAsState()
 
     var contextMenuChannel by remember { mutableStateOf<IptvChannel?>(null) }
-    var isFullscreen by remember { mutableStateOf(false) }
 
     val groupsLazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
     val channelsLazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -107,8 +106,8 @@ fun LiveTvScreen(
     var exoPlayer by remember { mutableStateOf<ExoPlayer?>(null) }
     var isPlaying by remember { mutableStateOf(false) }
 
-    // Single unified ExoPlayer instance for both Preview and Fullscreen playback
-    LaunchedEffect(selectedChannel?.id, selectedChannel?.streamUrl, isFullscreen, previewAudioEnabled) {
+    // Preview player for TV Guide header
+    LaunchedEffect(selectedChannel?.id, selectedChannel?.streamUrl, previewAudioEnabled) {
         val streamUrl = selectedChannel?.streamUrl
         if (streamUrl.isNullOrBlank()) {
             exoPlayer?.stop()
@@ -119,7 +118,7 @@ fun LiveTvScreen(
 
         val currentUri = exoPlayer?.currentMediaItem?.localConfiguration?.uri?.toString()
         if (exoPlayer != null && currentUri == streamUrl) {
-            exoPlayer?.volume = if (isFullscreen || previewAudioEnabled) 1f else 0f
+            exoPlayer?.volume = if (previewAudioEnabled) 1f else 0f
             return@LaunchedEffect
         }
 
@@ -127,15 +126,13 @@ fun LiveTvScreen(
         exoPlayer?.clearMediaItems()
         isPlaying = false
 
-        if (!isFullscreen) {
-            delay(500) // Debounce fast channel scrolling
-        }
+        delay(500) // Debounce fast channel scrolling
 
         val player = exoPlayer ?: ExoPlayer.Builder(context).build().also { exoPlayer = it }
         player.apply {
             val mediaItem = MediaItem.fromUri(streamUrl)
             setMediaItem(mediaItem)
-            volume = if (isFullscreen || previewAudioEnabled) 1f else 0f
+            volume = if (previewAudioEnabled) 1f else 0f
             playWhenReady = true
             addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
@@ -395,9 +392,12 @@ fun LiveTvScreen(
                     onMoveWindow = viewModel::moveGuideWindow,
                     onNow = viewModel::jumpGuideToNow,
                     onSelectChannel = viewModel::selectChannel,
-                    onExpandFullscreen = {
-                        selectedChannel?.let { viewModel.recordWatched(it) }
-                        isFullscreen = true
+                    onPlayChannel = { channel ->
+                        viewModel.recordWatched(channel)
+                        exoPlayer?.stop()
+                        exoPlayer?.release()
+                        exoPlayer = null
+                        onPlayChannel(channel)
                     },
                     onLongClickChannel = { contextMenuChannel = it },
                     modifier = Modifier.weight(1f)
@@ -405,50 +405,16 @@ fun LiveTvScreen(
             }
         }
 
-        // Fullscreen Unified Player Overlay
-        if (isFullscreen) {
-            val currentIndex = channels.indexOfFirst { it.id == selectedChannel?.id }
-            LiveTvFullscreenPlayerOverlay(
-                player = exoPlayer,
-                channel = selectedChannel,
-                currentProgram = currentEpg,
-                isPlaying = isPlaying,
-                onToggleFavorite = {
-                    selectedChannel?.let { viewModel.toggleFavorite(it) }
-                },
-                onTogglePlayPause = {
-                    if (exoPlayer?.isPlaying == true) {
-                        exoPlayer?.pause()
-                    } else {
-                        exoPlayer?.play()
-                    }
-                },
-                onNextChannel = {
-                    if (channels.isNotEmpty() && currentIndex >= 0) {
-                        val next = channels[(currentIndex + 1) % channels.size]
-                        viewModel.selectChannel(next)
-                    }
-                },
-                onPreviousChannel = {
-                    if (channels.isNotEmpty() && currentIndex >= 0) {
-                        val prev = channels[(currentIndex - 1 + channels.size) % channels.size]
-                        viewModel.selectChannel(prev)
-                    }
-                },
-                onExitFullscreen = {
-                    isFullscreen = false
-                }
-            )
-        }
-
         contextMenuChannel?.let { ch ->
             ChannelActionMenuDialog(
                 channel = ch,
                 onDismiss = { contextMenuChannel = null },
                 onPlay = {
-                    viewModel.selectChannel(ch)
                     viewModel.recordWatched(ch)
-                    isFullscreen = true
+                    exoPlayer?.stop()
+                    exoPlayer?.release()
+                    exoPlayer = null
+                    onPlayChannel(ch)
                 },
                 onToggleFavorite = { viewModel.toggleFavorite(ch) }
             )

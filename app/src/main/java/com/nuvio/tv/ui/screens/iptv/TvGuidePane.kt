@@ -85,7 +85,7 @@ internal fun TvGuidePane(
     onMoveWindow: (Int) -> Unit,
     onNow: () -> Unit,
     onSelectChannel: (IptvChannel) -> Unit,
-    onExpandFullscreen: () -> Unit,
+    onPlayChannel: (IptvChannel) -> Unit,
     onLongClickChannel: (IptvChannel) -> Unit,
     lazyListState: LazyListState = rememberLazyListState(),
     modifier: Modifier = Modifier
@@ -107,7 +107,7 @@ internal fun TvGuidePane(
             nextProgram = nextProgram,
             player = player,
             isPlaying = isPlaying,
-            onExpandFullscreen = onExpandFullscreen
+            onPlayChannel = { selectedChannel?.let(onPlayChannel) }
         )
         Spacer(Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -186,7 +186,7 @@ internal fun TvGuidePane(
                         horizontalScrollState = horizontalScrollState,
                         onChannelClick = {
                             if (selectedChannel?.id == channel.id) {
-                                onExpandFullscreen()
+                                onPlayChannel(channel)
                             } else {
                                 onSelectChannel(channel)
                             }
@@ -271,7 +271,7 @@ private fun GuideDetailHeader(
     nextProgram: IptvEpgProgram?,
     player: ExoPlayer?,
     isPlaying: Boolean,
-    onExpandFullscreen: () -> Unit
+    onPlayChannel: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -286,7 +286,7 @@ private fun GuideDetailHeader(
             channel = channel,
             player = player,
             isPlaying = isPlaying,
-            onClick = onExpandFullscreen
+            onClick = onPlayChannel
         )
 
         Spacer(Modifier.width(18.dp))
