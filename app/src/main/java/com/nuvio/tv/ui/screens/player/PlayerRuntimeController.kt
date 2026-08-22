@@ -245,7 +245,8 @@ class PlayerRuntimeController(
             currentSeason = currentSeason,
             currentEpisode = currentEpisode,
             currentVideoId = currentVideoId,
-            currentEpisodeTitle = currentEpisodeTitle
+            currentEpisodeTitle = currentEpisodeTitle,
+            iptvChannelId = currentIptvChannelId
         )
     )
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
@@ -258,6 +259,21 @@ class PlayerRuntimeController(
                 .collect { isPlaying ->
                     com.nuvio.tv.core.recommendations.TvRecommendationManager.isPlaybackActive.value = isPlaying
                 }
+        }
+
+        currentIptvChannelId?.let { chId ->
+            scope.launch {
+                iptvRepository.getActivePlaylistId().collect { playlistId ->
+                    if (playlistId != null) {
+                        iptvRepository.getChannels(playlistId).collect { chList ->
+                            val ch = chList.firstOrNull { it.id == chId }
+                            if (ch != null) {
+                                _uiState.update { it.copy(isIptvFavorite = ch.isFavorite) }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

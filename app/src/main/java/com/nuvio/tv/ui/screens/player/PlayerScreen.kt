@@ -56,6 +56,8 @@ import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -1874,6 +1876,14 @@ private fun PlayerControlsOverlay(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                    } else if (uiState.iptvChannelId != null && !uiState.description.isNullOrBlank()) {
+                        Text(
+                            text = uiState.description.orEmpty(),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White.copy(alpha = 0.9f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
 
                     val hasYear = !uiState.releaseYear.isNullOrBlank()
@@ -1890,16 +1900,15 @@ private fun PlayerControlsOverlay(
                                 )
                             }
 
-                            AnimatedVisibility(
-                                visible = showVia,
-                                enter = fadeIn(animationSpec = tween(durationMillis = 220)),
-                                exit = fadeOut(animationSpec = tween(durationMillis = NuvioMotion.tokens.durations.fast))
-                            ) {
+                            if (showVia) {
                                 Text(
-                                    text = stringResource(R.string.player_via, (uiState.currentStreamName ?: "").replace("\n", " · ")),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Color.White.copy(alpha = 0.68f),
-                                    maxLines = 2,
+                                    text = stringResource(
+                                        R.string.player_via,
+                                        (uiState.currentStreamName ?: "").replace("\n", " · ")
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
@@ -1926,189 +1935,200 @@ private fun PlayerControlsOverlay(
 
             // Control buttons row — always LTR regardless of locale
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val hasEpisodeContext = uiState.currentSeason != null && uiState.currentEpisode != null
-                    val hasSubtitleControl = uiState.subtitleTracks.isNotEmpty() || uiState.addonSubtitles.isNotEmpty()
-                    val hasAudioControl = uiState.audioTracks.isNotEmpty()
-                    val showNextEpisodeButton = uiState.nextEpisode?.hasAired == true &&
-                        (uiState.postPlayMode as? PostPlayMode.AutoPlay)?.let {
-                            !it.searching && it.countdownSec == null
-                        } != false
-
-                    ControlButton(
-                        icon = if (uiState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        iconPainter = if (uiState.isPlaying) customPausePainter else customPlayPainter,
-                        contentDescription = if (uiState.isPlaying) stringResource(R.string.cd_pause) else stringResource(R.string.cd_play),
-                        onClick = onPlayPause,
-                        focusRequester = playPauseFocusRequester,
-                        upFocusRequester = progressBarFocusRequester,
-                        onDownKey = onHideControls,
-                        onFocused = onResetHideTimer
-                    )
-
-                    if (showNextEpisodeButton) {
-                        ControlButton(
-                            icon = Icons.Default.SkipNext,
-                            contentDescription = stringResource(R.string.next_episode_label),
-                            onClick = onPlayNextEpisode,
-                            upFocusRequester = progressBarFocusRequester,
-                            onDownKey = onHideControls,
-                            onFocused = onResetHideTimer
-                        )
-                    }
-
-                    if (hasSubtitleControl) {
-                        ControlButton(
-                            icon = Icons.Default.ClosedCaption,
-                            iconPainter = customSubtitlePainter,
-                            contentDescription = stringResource(R.string.cd_subtitles),
-                            onClick = onShowSubtitleDialog,
-                            upFocusRequester = progressBarFocusRequester,
-                            onDownKey = onHideControls,
-                            onFocused = onResetHideTimer
-                        )
-                    }
-
-                    if (hasAudioControl) {
-                        ControlButton(
-                            icon = Icons.AutoMirrored.Filled.VolumeUp,
-                            iconPainter = customAudioPainter,
-                            contentDescription = stringResource(R.string.cd_audio_tracks),
-                            onClick = onShowAudioDialog,
-                            upFocusRequester = progressBarFocusRequester,
-                            onDownKey = onHideControls,
-                            onFocused = onResetHideTimer
-                        )
-                    }
-
-                    ControlButton(
-                        icon = Icons.Default.SwapHoriz,
-                        iconPainter = customSourcePainter,
-                        contentDescription = stringResource(R.string.cd_sources),
-                        onClick = onShowSourcesPanel,
-                        upFocusRequester = progressBarFocusRequester,
-                        onDownKey = onHideControls,
-                        onFocused = onResetHideTimer
-                    )
-
-                    ControlButton(
-                        icon = Icons.Default.SwapHoriz,
-                        contentDescription = stringResource(R.string.cd_switch_player_engine),
-                        onClick = onSwitchPlayerEngine,
-                        upFocusRequester = progressBarFocusRequester,
-                        onDownKey = onHideControls,
-                        onFocused = onResetHideTimer
-                    )
-
-                    if (hasEpisodeContext) {
-                        ControlButton(
-                            icon = Icons.AutoMirrored.Filled.List,
-                            iconPainter = customEpisodesPainter,
-                            contentDescription = stringResource(R.string.cd_episodes),
-                            onClick = onShowEpisodesPanel,
-                            upFocusRequester = progressBarFocusRequester,
-                            onDownKey = onHideControls,
-                            onFocused = onResetHideTimer
-                        )
-                    }
-
-                    AnimatedVisibility(
-                        visible = uiState.showMoreDialog,
-                        enter = slideInHorizontally(
-                            animationSpec = tween(NuvioMotion.tokens.durations.fast),
-                            initialOffsetX = { it / 2 }
-                        ) + fadeIn(animationSpec = tween(NuvioMotion.tokens.durations.fast)),
-                        exit = slideOutHorizontally(
-                            animationSpec = tween(160),
-                            targetOffsetX = { it / 2 }
-                        ) + fadeOut(animationSpec = tween(160))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs),
-                            verticalAlignment = Alignment.CenterVertically
+                        val hasEpisodeContext = uiState.currentSeason != null && uiState.currentEpisode != null
+                        val hasSubtitleControl = uiState.subtitleTracks.isNotEmpty() || uiState.addonSubtitles.isNotEmpty()
+                        val hasAudioControl = uiState.audioTracks.isNotEmpty()
+                        val showNextEpisodeButton = uiState.nextEpisode?.hasAired == true &&
+                            (uiState.postPlayMode as? PostPlayMode.AutoPlay)?.let {
+                                !it.searching && it.countdownSec == null
+                            } != false
+
+                        ControlButton(
+                            icon = if (uiState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            iconPainter = if (uiState.isPlaying) customPausePainter else customPlayPainter,
+                            contentDescription = if (uiState.isPlaying) stringResource(R.string.cd_pause) else stringResource(R.string.cd_play),
+                            onClick = onPlayPause,
+                            focusRequester = playPauseFocusRequester,
+                            upFocusRequester = progressBarFocusRequester,
+                            onDownKey = onHideControls,
+                            onFocused = onResetHideTimer
+                        )
+
+                        if (showNextEpisodeButton) {
+                            ControlButton(
+                                icon = Icons.Default.SkipNext,
+                                contentDescription = stringResource(R.string.next_episode_label),
+                                onClick = onPlayNextEpisode,
+                                upFocusRequester = progressBarFocusRequester,
+                                onDownKey = onHideControls,
+                                onFocused = onResetHideTimer
+                            )
+                        }
+
+                        if (hasSubtitleControl) {
+                            ControlButton(
+                                icon = Icons.Default.ClosedCaption,
+                                iconPainter = customSubtitlePainter,
+                                contentDescription = stringResource(R.string.cd_subtitles),
+                                onClick = onShowSubtitleDialog,
+                                upFocusRequester = progressBarFocusRequester,
+                                onDownKey = onHideControls,
+                                onFocused = onResetHideTimer
+                            )
+                        }
+
+                        if (hasAudioControl) {
+                            ControlButton(
+                                icon = Icons.AutoMirrored.Filled.VolumeUp,
+                                iconPainter = customAudioPainter,
+                                contentDescription = stringResource(R.string.cd_audio_tracks),
+                                onClick = onShowAudioDialog,
+                                upFocusRequester = progressBarFocusRequester,
+                                onDownKey = onHideControls,
+                                onFocused = onResetHideTimer
+                            )
+                        }
+
+                        ControlButton(
+                            icon = Icons.Default.SwapHoriz,
+                            iconPainter = customSourcePainter,
+                            contentDescription = stringResource(R.string.cd_sources),
+                            onClick = onShowSourcesPanel,
+                            upFocusRequester = progressBarFocusRequester,
+                            onDownKey = onHideControls,
+                            onFocused = onResetHideTimer
+                        )
+
+                        ControlButton(
+                            icon = Icons.Default.SwapHoriz,
+                            contentDescription = stringResource(R.string.cd_switch_player_engine),
+                            onClick = onSwitchPlayerEngine,
+                            upFocusRequester = progressBarFocusRequester,
+                            onDownKey = onHideControls,
+                            onFocused = onResetHideTimer
+                        )
+
+                        if (hasEpisodeContext) {
+                            ControlButton(
+                                icon = Icons.AutoMirrored.Filled.List,
+                                iconPainter = customEpisodesPainter,
+                                contentDescription = stringResource(R.string.cd_episodes),
+                                onClick = onShowEpisodesPanel,
+                                upFocusRequester = progressBarFocusRequester,
+                                onDownKey = onHideControls,
+                                onFocused = onResetHideTimer
+                            )
+                        }
+
+                        if (uiState.iptvChannelId != null) {
+                            ControlButton(
+                                icon = if (uiState.isIptvFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = "Favourite",
+                                onClick = { viewModel.toggleIptvFavorite() },
+                                upFocusRequester = progressBarFocusRequester,
+                                onDownKey = onHideControls,
+                                onFocused = onResetHideTimer
+                            )
+                        }
+
+                        AnimatedVisibility(
+                            visible = uiState.showMoreDialog,
+                            enter = slideInHorizontally(
+                                animationSpec = tween(NuvioMotion.tokens.durations.fast),
+                                initialOffsetX = { it / 2 }
+                            ) + fadeIn(animationSpec = tween(NuvioMotion.tokens.durations.fast)),
+                            exit = slideOutHorizontally(
+                                animationSpec = tween(160),
+                                targetOffsetX = { it / 2 }
+                            ) + fadeOut(animationSpec = tween(160))
                         ) {
-                            ControlButton(
-                                icon = Icons.Default.Speed,
-                                contentDescription = stringResource(R.string.cd_playback_speed),
-                                onClick = {
-                                    onShowSpeedDialog()
-                                },
-                                upFocusRequester = progressBarFocusRequester,
-                                onDownKey = onHideControls,
-                                onFocused = onResetHideTimer
-                            )
-                            ControlButton(
-                                icon = Icons.Default.AspectRatio,
-                                iconPainter = customAspectPainter,
-                                contentDescription = stringResource(R.string.cd_aspect_ratio),
-                                onClick = {
-                                    onToggleAspectRatio()
-                                },
-                                upFocusRequester = progressBarFocusRequester,
-                                onDownKey = onHideControls,
-                                onFocused = onResetHideTimer
-                            )
-                            ControlButton(
-                                icon = Icons.AutoMirrored.Filled.OpenInNew,
-                                contentDescription = stringResource(R.string.cd_open_external_player),
-                                onClick = {
-                                    onOpenInExternalPlayer()
-                                },
-                                upFocusRequester = progressBarFocusRequester,
-                                onDownKey = onHideControls,
-                                onFocused = onResetHideTimer
-                            )
-                            ControlButton(
-                                icon = Icons.Default.Info,
-                                contentDescription = stringResource(R.string.cd_stream_info),
-                                onClick = {
-                                    onShowStreamInfo()
-                                },
-                                focusRequester = streamInfoFocusRequester,
-                                upFocusRequester = progressBarFocusRequester,
-                                onDownKey = onHideControls,
-                                onFocused = onResetHideTimer
-                            )
-                            if (uiState.playbackIssueReportsEnabled) {
-                                ReportControlButton(
-                                    reportId = uiState.playbackIssueReportId,
-                                    showReportId = reportCodeVisible,
-                                    onClick = onReportPlaybackIssue,
-                                    enabled = uiState.playbackIssueReportStatus != PlaybackIssueReportStatus.Sending &&
-                                        uiState.playbackIssueReportStatus != PlaybackIssueReportStatus.Sent,
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.xs),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                ControlButton(
+                                    icon = Icons.Default.Speed,
+                                    contentDescription = stringResource(R.string.cd_playback_speed),
+                                    onClick = {
+                                        onShowSpeedDialog()
+                                    },
                                     upFocusRequester = progressBarFocusRequester,
                                     onDownKey = onHideControls,
                                     onFocused = onResetHideTimer
                                 )
+                                ControlButton(
+                                    icon = Icons.Default.AspectRatio,
+                                    iconPainter = customAspectPainter,
+                                    contentDescription = stringResource(R.string.cd_aspect_ratio),
+                                    onClick = {
+                                        onToggleAspectRatio()
+                                    },
+                                    upFocusRequester = progressBarFocusRequester,
+                                    onDownKey = onHideControls,
+                                    onFocused = onResetHideTimer
+                                )
+                                ControlButton(
+                                    icon = Icons.AutoMirrored.Filled.OpenInNew,
+                                    contentDescription = stringResource(R.string.cd_open_external_player),
+                                    onClick = {
+                                        onOpenInExternalPlayer()
+                                    },
+                                    upFocusRequester = progressBarFocusRequester,
+                                    onDownKey = onHideControls,
+                                    onFocused = onResetHideTimer
+                                )
+                                ControlButton(
+                                    icon = Icons.Default.Info,
+                                    contentDescription = stringResource(R.string.cd_stream_info),
+                                    onClick = {
+                                        onShowStreamInfo()
+                                    },
+                                    focusRequester = streamInfoFocusRequester,
+                                    upFocusRequester = progressBarFocusRequester,
+                                    onDownKey = onHideControls,
+                                    onFocused = onResetHideTimer
+                                )
+                                if (uiState.playbackIssueReportsEnabled) {
+                                    ReportControlButton(
+                                        reportId = uiState.playbackIssueReportId,
+                                        showReportId = reportCodeVisible,
+                                        onClick = onReportPlaybackIssue,
+                                        enabled = uiState.playbackIssueReportStatus != PlaybackIssueReportStatus.Sending &&
+                                            uiState.playbackIssueReportStatus != PlaybackIssueReportStatus.Sent,
+                                        upFocusRequester = progressBarFocusRequester,
+                                        onDownKey = onHideControls,
+                                        onFocused = onResetHideTimer
+                                    )
+                                }
                             }
                         }
+
+                        ControlButton(
+                            icon = if (uiState.showMoreDialog) {
+                                Icons.AutoMirrored.Filled.KeyboardArrowLeft
+                            } else {
+                                Icons.AutoMirrored.Filled.KeyboardArrowRight
+                            },
+                            contentDescription = if (uiState.showMoreDialog) stringResource(R.string.cd_close_more_actions) else stringResource(R.string.cd_more_actions),
+                            onClick = onToggleMoreActions,
+                            upFocusRequester = progressBarFocusRequester,
+                            onDownKey = onHideControls,
+                            onFocused = onResetHideTimer
+                        )
                     }
 
-                    ControlButton(
-                        icon = if (uiState.showMoreDialog) {
-                            Icons.AutoMirrored.Filled.KeyboardArrowLeft
-                        } else {
-                            Icons.AutoMirrored.Filled.KeyboardArrowRight
-                        },
-                        contentDescription = if (uiState.showMoreDialog) stringResource(R.string.cd_close_more_actions) else stringResource(R.string.cd_more_actions),
-                        onClick = onToggleMoreActions,
-                        upFocusRequester = progressBarFocusRequester,
-                        onDownKey = onHideControls,
-                        onFocused = onResetHideTimer
-                    )
+                    // Right side - Time display only
+                    PlayerControlsTimeTextHost(viewModel = viewModel)
                 }
-
-                // Right side - Time display only
-                PlayerControlsTimeTextHost(viewModel = viewModel)
-            }
             }
         }
     }

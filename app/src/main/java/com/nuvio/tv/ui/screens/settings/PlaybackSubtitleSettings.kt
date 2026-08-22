@@ -53,7 +53,10 @@ private val subtitleColors = listOf(
 private val subtitleBackgroundColors = listOf(
     Color.Transparent,
     Color.Black,
-    Color(0x80000000),
+    Color(0xCC000000), // 80% Black blur container
+    Color(0x80000000), // 50% Black blur container
+    Color(0xCC1A1A1A), // 80% Dark Gray
+    Color(0xCC1E293B), // 80% Slate Navy
     Color(0xFF1A1A1A),
     Color(0xFF2D2D2D)
 )

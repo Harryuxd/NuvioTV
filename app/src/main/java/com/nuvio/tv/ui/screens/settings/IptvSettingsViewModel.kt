@@ -33,7 +33,8 @@ data class IptvSettingsUiState(
     val logoPriorityOrder: List<String> = listOf("TV_LOGOS", "IPTV_ORG", "PROVIDER"),
     val useProviderLogoFallback: Boolean = true,
     val isReResolvingLogos: Boolean = false,
-    val reResolveMessage: String? = null
+    val reResolveMessage: String? = null,
+    val previewPlayerAudio: Boolean = false
 )
 
 @HiltViewModel
@@ -50,6 +51,11 @@ class IptvSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             iptvPreferencesDataStore.iptvPlayerEngine.collectLatest { engine ->
                 _uiState.update { it.copy(playerEngine = engine) }
+            }
+        }
+        viewModelScope.launch {
+            iptvPreferencesDataStore.previewPlayerAudioEnabled.collectLatest { enabled ->
+                _uiState.update { it.copy(previewPlayerAudio = enabled) }
             }
         }
         viewModelScope.launch {
@@ -96,6 +102,12 @@ class IptvSettingsViewModel @Inject constructor(
     fun setPlayerEngine(engine: InternalPlayerEngine) {
         viewModelScope.launch {
             iptvPreferencesDataStore.setIptvPlayerEngine(engine)
+        }
+    }
+
+    fun setPreviewPlayerAudio(enabled: Boolean) {
+        viewModelScope.launch {
+            iptvPreferencesDataStore.setPreviewPlayerAudioEnabled(enabled)
         }
     }
 

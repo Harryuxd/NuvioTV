@@ -179,9 +179,11 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import java.util.Locale
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -241,6 +243,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var startupSyncService: StartupSyncService
+
+    @Inject
+    lateinit var iptvRepository: com.nuvio.tv.domain.repository.IptvRepository
 
     @Inject
     lateinit var androidTvChannelSyncService: com.nuvio.tv.core.sync.androidtv.AndroidTvChannelSyncService
@@ -322,6 +327,19 @@ class MainActivity : ComponentActivity() {
         externalPlaybackTracker.activityLauncher = externalPlayerLauncher
 
         PluginRuntimeHooks.onActivityCreate(this)
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching {
+                iptvRepository.getPlaylists().firstOrNull()?.let { list ->
+                    val activeId = iptvRepository.getActivePlaylistId().firstOrNull()
+                    val active = list.firstOrNull { it.id == activeId } ?: list.firstOrNull()
+                    if (active != null) {
+                        iptvRepository.getGroups(active.id).firstOrNull()
+                        iptvRepository.getChannels(active.id).firstOrNull()
+                    }
+                }
+            }
+        }
 
         window?.decorView?.post {
             val snapshot = com.nuvio.tv.core.player.DisplayCapabilities.detect(this)

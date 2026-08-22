@@ -130,6 +130,13 @@ internal fun IptvSettingsContent(
                     viewModel.setBufferProfile(nextProfile)
                 }
             )
+
+            SettingsToggleRow(
+                title = "Preview Player Audio",
+                subtitle = "Play channel audio while previewing in TV Guide",
+                checked = uiState.previewPlayerAudio,
+                onToggle = { viewModel.setPreviewPlayerAudio(!uiState.previewPlayerAudio) }
+            )
         }
 
         // ── Section 3: Channel Logos & Artwork ──

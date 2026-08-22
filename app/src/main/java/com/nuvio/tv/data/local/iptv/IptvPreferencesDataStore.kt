@@ -32,7 +32,18 @@ class IptvPreferencesDataStore @Inject constructor(
         private val IPTV_BUFFER_PROFILE = stringPreferencesKey("iptv_buffer_profile")
         private val LOGO_PRIORITY_ORDER = stringPreferencesKey("iptv_logo_priority_order")
         private val USE_PROVIDER_LOGO_FALLBACK = booleanPreferencesKey("iptv_use_provider_logo_fallback")
+        private val PREVIEW_PLAYER_AUDIO_ENABLED = booleanPreferencesKey("iptv_preview_player_audio_enabled")
         const val DEFAULT_LOGO_PRIORITY = "TV_LOGOS,IPTV_ORG,PROVIDER"
+    }
+
+    val previewPlayerAudioEnabled: Flow<Boolean> = context.iptvDataStore.data.map { prefs ->
+        prefs[PREVIEW_PLAYER_AUDIO_ENABLED] ?: false
+    }
+
+    suspend fun setPreviewPlayerAudioEnabled(enabled: Boolean) {
+        context.iptvDataStore.edit { prefs ->
+            prefs[PREVIEW_PLAYER_AUDIO_ENABLED] = enabled
+        }
     }
 
     val activePlaylistId: Flow<String?> = context.iptvDataStore.data.map { prefs ->

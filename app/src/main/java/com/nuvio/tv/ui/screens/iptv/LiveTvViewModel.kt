@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -68,7 +69,10 @@ class LiveTvViewModel @Inject constructor(
 
     private val _guideWindowStart = MutableStateFlow(roundToHalfHour(System.currentTimeMillis()))
     val guideWindowStart: StateFlow<Long> = _guideWindowStart.asStateFlow()
-    private val guideWindowDurationMs = 3 * 60 * 60 * 1000L
+    private val guideWindowDurationMs = 24 * 60 * 60 * 1000L
+
+    val previewPlayerAudioEnabled: StateFlow<Boolean> = preferencesDataStore.previewPlayerAudioEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val playlists = iptvRepository.getPlaylists()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -120,7 +124,16 @@ class LiveTvViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Pair(null, null))
 
     init {
-        // Auto-select first channel when channels load
+        // Restore last selected group
+        viewModelScope.launch {
+            preferencesDataStore.lastSelectedGroupId.firstOrNull()?.let { savedGroupId ->
+                if (!savedGroupId.isNullOrBlank()) {
+                    _selectedGroupId.value = savedGroupId
+                }
+            }
+        }
+
+        // Auto-select first channel when channels load if none selected
         viewModelScope.launch {
             channels.collect { chList ->
                 if (_selectedChannel.value == null || chList.none { it.id == _selectedChannel.value?.id }) {
@@ -134,12 +147,16 @@ class LiveTvViewModel @Inject constructor(
         viewModelScope.launch {
             iptvRepository.setActivePlaylistId(playlistId)
             _selectedGroupId.value = GROUP_ALL
+            preferencesDataStore.setLastSelectedGroupId(GROUP_ALL)
             _selectedChannel.value = null
         }
     }
 
     fun selectGroup(groupId: String) {
         _selectedGroupId.value = groupId
+        viewModelScope.launch {
+            preferencesDataStore.setLastSelectedGroupId(groupId)
+        }
     }
 
     fun selectChannel(channel: IptvChannel) {

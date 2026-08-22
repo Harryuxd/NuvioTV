@@ -86,8 +86,13 @@ fun LiveTvScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    val previewAudioEnabled by viewModel.previewPlayerAudioEnabled.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
+    var contextMenuChannel by remember { mutableStateOf<IptvChannel?>(null) }
+
+    val groupsLazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val channelsLazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
 
     Box(
         modifier = Modifier
@@ -242,6 +247,7 @@ fun LiveTvScreen(
 
                     // Groups List
                     LazyColumn(
+                        state = groupsLazyListState,
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
@@ -309,14 +315,25 @@ fun LiveTvScreen(
                     currentProgram = currentEpg,
                     nextProgram = nextEpg,
                     isRefreshing = isRefreshing,
+                    previewAudioEnabled = previewAudioEnabled,
+                    lazyListState = channelsLazyListState,
                     onMoveWindow = viewModel::moveGuideWindow,
                     onNow = viewModel::jumpGuideToNow,
                     onSelectChannel = viewModel::selectChannel,
                     onPlayChannel = { channel -> viewModel.recordWatched(channel); onPlayChannel(channel) },
-                    onToggleFavorite = viewModel::toggleFavorite,
+                    onLongClickChannel = { contextMenuChannel = it },
                     modifier = Modifier.weight(1f)
                 )
             }
+        }
+
+        contextMenuChannel?.let { ch ->
+            ChannelActionMenuDialog(
+                channel = ch,
+                onDismiss = { contextMenuChannel = null },
+                onPlay = { onPlayChannel(ch) },
+                onToggleFavorite = { viewModel.toggleFavorite(ch) }
+            )
         }
 
         if (showAddDialog) {

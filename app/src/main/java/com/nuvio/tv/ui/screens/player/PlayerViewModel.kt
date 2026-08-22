@@ -300,4 +300,12 @@ class PlayerViewModel @Inject constructor(
             onResult(launched)
         }
     }
+
+    fun toggleIptvFavorite() {
+        val channelId = controller.currentIptvChannelId ?: return
+        val currentFav = uiState.value.isIptvFavorite
+        viewModelScope.launch {
+            iptvRepository.toggleFavorite(channelId, !currentFav)
+        }
+    }
 }
