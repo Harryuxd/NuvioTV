@@ -3,30 +3,46 @@
 package com.nuvio.tv.ui.screens.settings
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.tv.material3.Border
+import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.Icon
+import androidx.tv.material3.Surface
 import com.nuvio.tv.data.local.InternalPlayerEngine
 import com.nuvio.tv.data.local.iptv.IptvBufferProfile
 import com.nuvio.tv.ui.theme.NuvioTheme
@@ -156,13 +172,38 @@ internal fun IptvSettingsContent(
             SettingsDetailHeader(title = "Added manually", subtitle = "Global sources matched to channels by TVG ID")
             SettingsGroupCard(modifier = Modifier.fillMaxWidth()) {
                 uiState.manualEpgSources.forEach { source ->
-                    SettingsActionRow(
-                        title = source.name,
-                        subtitle = source.lastError ?: source.location,
-                        value = source.statusLabel(),
-                        leadingIcon = Icons.Default.Edit,
-                        onClick = { sourceBeingEdited = source; showSourceDialog = true }
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SettingsActionRow(
+                            title = source.name,
+                            subtitle = source.lastError ?: source.location,
+                            value = source.statusLabel(),
+                            leadingIcon = Icons.Default.Tv,
+                            onClick = { sourceBeingEdited = source; showSourceDialog = true },
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(NuvioTheme.spacing.sm))
+                        EpgActionButton(
+                            icon = Icons.Default.Refresh,
+                            description = "Refresh",
+                            onClick = { viewModel.refreshEpgSource(source) }
+                        )
+                        Spacer(modifier = Modifier.width(NuvioTheme.spacing.xs))
+                        EpgActionButton(
+                            icon = Icons.Default.Edit,
+                            description = "Edit",
+                            onClick = { sourceBeingEdited = source; showSourceDialog = true }
+                        )
+                        Spacer(modifier = Modifier.width(NuvioTheme.spacing.xs))
+                        EpgActionButton(
+                            icon = Icons.Default.Delete,
+                            description = "Delete",
+                            tint = NuvioTheme.colors.Error,
+                            onClick = { viewModel.deleteEpgSource(source.id) }
+                        )
+                    }
                 }
             }
         }
@@ -170,13 +211,31 @@ internal fun IptvSettingsContent(
             SettingsDetailHeader(title = "From playlists", subtitle = "Guide URLs configured by your playlists")
             SettingsGroupCard(modifier = Modifier.fillMaxWidth()) {
                 uiState.playlistEpgSources.forEach { source ->
-                    SettingsActionRow(
-                        title = source.name,
-                        subtitle = source.lastError ?: source.location,
-                        value = source.statusLabel(),
-                        leadingIcon = Icons.Default.LiveTv,
-                        onClick = { sourceBeingEdited = source; showSourceDialog = true }
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SettingsActionRow(
+                            title = source.name,
+                            subtitle = source.lastError ?: source.location,
+                            value = source.statusLabel(),
+                            leadingIcon = Icons.Default.LiveTv,
+                            onClick = { sourceBeingEdited = source; showSourceDialog = true },
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(NuvioTheme.spacing.sm))
+                        EpgActionButton(
+                            icon = Icons.Default.Refresh,
+                            description = "Refresh",
+                            onClick = { viewModel.refreshEpgSource(source) }
+                        )
+                        Spacer(modifier = Modifier.width(NuvioTheme.spacing.xs))
+                        EpgActionButton(
+                            icon = Icons.Default.Edit,
+                            description = "Edit",
+                            onClick = { sourceBeingEdited = source; showSourceDialog = true }
+                        )
+                    }
                 }
             }
         }
@@ -189,6 +248,42 @@ internal fun IptvSettingsContent(
         onRefresh = { source -> viewModel.refreshEpgSource(source) },
         onDelete = { source -> viewModel.deleteEpgSource(source.id); showSourceDialog = false }
     )
+}
+
+@Composable
+private fun EpgActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    tint: Color = NuvioTheme.colors.TextSecondary,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = ClickableSurfaceDefaults.shape(CircleShape),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            focusedContainerColor = NuvioTheme.colors.FocusBackground
+        ),
+        border = ClickableSurfaceDefaults.border(
+            focusedBorder = Border(
+                border = NuvioTheme.focusRing.border(NuvioTheme.spacing.xxs),
+                shape = CircleShape
+            )
+        ),
+        modifier = Modifier.size(38.dp)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = description,
+                tint = tint,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
 }
 
 private fun IptvEpgSource.statusLabel(): String = when (syncStatus) {
