@@ -64,6 +64,9 @@ class LiveTvViewModel @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
+    private val _isInitialLoading = MutableStateFlow(true)
+    val isInitialLoading: StateFlow<Boolean> = _isInitialLoading.asStateFlow()
+
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
@@ -136,8 +139,17 @@ class LiveTvViewModel @Inject constructor(
         // Auto-select first channel when channels load if none selected
         viewModelScope.launch {
             channels.collect { chList ->
+                _isInitialLoading.value = false
                 if (_selectedChannel.value == null || chList.none { it.id == _selectedChannel.value?.id }) {
                     _selectedChannel.value = chList.firstOrNull()
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            playlists.collect {
+                if (it.isEmpty()) {
+                    _isInitialLoading.value = false
                 }
             }
         }

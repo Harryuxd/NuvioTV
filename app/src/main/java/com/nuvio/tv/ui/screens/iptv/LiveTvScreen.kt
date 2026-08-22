@@ -87,6 +87,7 @@ fun LiveTvScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
     val previewAudioEnabled by viewModel.previewPlayerAudioEnabled.collectAsState()
+    val isInitialLoading by viewModel.isInitialLoading.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
     var contextMenuChannel by remember { mutableStateOf<IptvChannel?>(null) }
@@ -99,7 +100,14 @@ fun LiveTvScreen(
             .fillMaxSize()
             .background(NuvioTheme.colors.Background)
     ) {
-        if (playlists.isEmpty()) {
+        if (isInitialLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                LoadingIndicator(Modifier.size(40.dp))
+            }
+        } else if (playlists.isEmpty()) {
             // Empty State
             Box(
                 modifier = Modifier

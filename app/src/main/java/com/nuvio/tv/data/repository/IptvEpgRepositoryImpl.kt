@@ -133,12 +133,13 @@ class IptvEpgRepositoryImpl @Inject constructor(
         windowStartEpochMs: Long,
         windowEndEpochMs: Long
     ): Flow<List<IptvEpgProgram>> {
-        val keys = getMatchKeys(channel)
         return dbHelper.dbUpdates
             .onStart { emit(Unit) }
             .map {
+                val keys = getMatchKeys(channel)
                 dbHelper.getSchedule(keys, windowStartEpochMs, windowEndEpochMs)
             }
+            .flowOn(Dispatchers.IO)
     }
 
     override fun getSchedulesForWindow(
@@ -150,6 +151,7 @@ class IptvEpgRepositoryImpl @Inject constructor(
             .map {
                 dbHelper.getSchedulesForWindow(windowStartEpochMs, windowEndEpochMs)
             }
+            .flowOn(Dispatchers.IO)
     }
 
     private fun getMatchKeys(channel: IptvChannel): List<String> {

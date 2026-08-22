@@ -263,7 +263,12 @@ private fun LiveTvPreviewPlayer(
     }
 
     Card(
-        onClick = onClick,
+        onClick = {
+            exoPlayer?.stop()
+            exoPlayer?.release()
+            exoPlayer = null
+            onClick()
+        },
         modifier = modifier
             .width(230.dp)
             .height(130.dp),
